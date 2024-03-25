@@ -11,6 +11,7 @@
 #include "config.h"
 #include "crc.h"
 #include "gettime.h"
+#include "mac_ring_buffer.h"
 #include "mac_scheduler.h"
 #include "message.h"
 #include "phy_stats.h"
@@ -18,7 +19,6 @@
 #include "symbols.h"
 #include "udp_comm.h"
 #include "udp_server.h"
-
 /**
  * @brief The MAC thread that runs alongside the PHY processing at the Agora
  * server or client.

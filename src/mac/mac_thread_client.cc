@@ -178,7 +178,6 @@ void MacThreadClient::ProcessCodeblocksFromPhy(EventData event) {
   const size_t frame_id = gen_tag_t(event.tags_[0]).frame_id_;
   const size_t symbol_id = gen_tag_t(event.tags_[0]).symbol_id_;
   const size_t ue_id = gen_tag_t(event.tags_[0]).ue_id_;
-  //if (mac_sched_->IsUeScheduled(frame_id, 0, ue_id)) {
   // Helper variables (changes with bs / user)
   const size_t num_pilot_symbols = cfg_->Frame().ClientDlPilotSymbols();
   const size_t symbol_array_index = cfg_->Frame().GetDLSymbolIdx(symbol_id);
@@ -330,7 +329,6 @@ void MacThreadClient::ProcessCodeblocksFromPhy(EventData event) {
       ss.str("");
     }
   }
-  //}
   RtAssert(
       tx_queue_->enqueue(EventData(EventType::kPacketToMac, event.tags_[0])),
       "Socket message enqueue failed\n");

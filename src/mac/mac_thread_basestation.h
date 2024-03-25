@@ -11,6 +11,7 @@
 #include "config.h"
 #include "crc.h"
 #include "gettime.h"
+#include "mac_ring_buffer.h"
 #include "mac_scheduler.h"
 #include "message.h"
 #include "phy_stats.h"
