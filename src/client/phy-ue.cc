@@ -19,7 +19,6 @@
 #include "utils_ldpc.h"
 
 /* Print debug work */
-static constexpr bool kDebugPrintPacketsFromMac = false;
 static constexpr bool kDebugPrintPacketsToMac = false;
 static constexpr size_t kDefaultQueueSize = 36;
 
@@ -636,7 +635,6 @@ void PhyUe::Start() {
           // This is an entire frame (multiple mac packets)
           const size_t frame_id = rx_mac_tag_t(event.tags_[0]).frame_id_;
           const size_t ue_id = rx_mac_tag_t(event.tags_[0]).tid_;
-          const size_t radio_buf_id = rx_mac_tag_t(event.tags_[0]).offset_;
           // TODO: Consider code blocks per symbol
           for (size_t i = config_->Frame().ClientUlPilotSymbols();
                i < config_->Frame().NumULSyms(); i++) {
@@ -647,43 +645,9 @@ void PhyUe::Start() {
                     .tag_);
             ScheduleWork(do_encode_task);
           }
-          const auto* pkt = reinterpret_cast<const MacPacketPacked*>(
-              &ul_bits_buffer_[ue_id]
-                              [radio_buf_id * config_->MacBytesNumPerframe(
-                                                  Direction::kUplink)]);
-
-          AGORA_LOG_TRACE(
-              "PhyUe: frame %d symbol %d user %d @ offset %zu %zu @ location "
-              "%zu\n",
-              pkt->Frame(), pkt->Symbol(), pkt->Ue(), ue_id, radio_buf_id,
-              (size_t)pkt);
 #if defined(ENABLE_RB_IND)
           config_->UpdateModCfgs(pkt->rb_indicator_.mod_order_bits_);
 #endif
-          if (kDebugPrintPacketsFromMac) {
-#if defined(ENABLE_RB_IND)
-            AGORA_LOG_INFO(
-                "PhyUe: received packet for frame %u with modulation %zu\n",
-                pkt->frame_id_, pkt->rb_indicator_.mod_order_bits_);
-#endif
-            std::stringstream ss;
-
-            for (size_t ul_data_symbol = 0;
-                 ul_data_symbol < config_->Frame().NumUlDataSyms();
-                 ul_data_symbol++) {
-              ss << "PhyUe: kPacketFromMac, frame " << pkt->Frame()
-                 << ", symbol " << std::to_string(pkt->Symbol()) << " crc "
-                 << std::to_string(pkt->Crc()) << " bytes: ";
-              for (size_t i = 0; i < pkt->PayloadLength(); i++) {
-                ss << std::to_string((pkt->Data()[i])) << ", ";
-              }
-              ss << std::endl;
-              pkt = reinterpret_cast<const MacPacketPacked*>(
-                  reinterpret_cast<const uint8_t*>(pkt) +
-                  config_->MacPacketLength(Direction::kUplink));
-            }
-            AGORA_LOG_INFO("%s\n", ss.str().c_str());
-          }
         } break;
 
         case EventType::kEncode: {

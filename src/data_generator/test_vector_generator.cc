@@ -604,7 +604,7 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
           &dl_encoded_codewords.at(i)[0], &dl_modulated_codewords.at(i)[0],
           cfg->ModTable(Direction::kDownlink),
           cfg->LdpcConfig(Direction::kDownlink).NumCbCodewLen(),
-          cfg->OfdmDataNum(), cfg->ModOrderBits(Direction::kDownlink));
+          cfg->GetOFDMDataNum(), cfg->ModOrderBits(Direction::kDownlink));
       dl_modulated_symbols.at(i) = DataGenerator::MapOFDMSymbol(
           cfg, ofdm_symbol, ue_specific_pilot[ue_id], SymbolType::kDL);
     }

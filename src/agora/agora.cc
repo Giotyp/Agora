@@ -20,7 +20,6 @@
 #include "signal_handler.h"
 
 static const bool kPrintAdaptUes = false;
-static const bool kDebugPrintPacketsFromMac = false;
 static const bool kDebugDeferral = true;
 
 static const std::string kProjectDirectory = TOSTRING(PROJECT_DIRECTORY);
@@ -113,11 +112,13 @@ void Agora::Stop() {
 }
 
 void Agora::ScheduleDownlinkMAC(size_t frame_id) {
-  auto ue_list = mac_sched_->ScheduledUeList(frame_id, 0u);
-  for (const auto& ue : ue_list) {
-    auto base_tag = gen_tag_t::FrmUe(frame_id, ue);
-    EventData mac_event(EventType::kPacketFromMac, base_tag.tag_);
-    TryEnqueueFallback(&mac_request_queue_, mac_event);
+  if (config_->Frame().NumDLSyms() > 0) {
+    auto ue_list = mac_sched_->ScheduledUeList(frame_id, 0u);
+    for (const auto& ue : ue_list) {
+      auto base_tag = gen_tag_t::FrmUe(frame_id, ue);
+      EventData mac_event(EventType::kPacketFromMac, base_tag.tag_);
+      TryEnqueueFallback(&mac_request_queue_, mac_event);
+    }
   }
 }
 
@@ -609,34 +610,8 @@ void Agora::Start() {
         case EventType::kPacketFromMac: {
           // This is an entire frame (multiple mac packets)
           const size_t frame_id = rx_mac_tag_t(event.tags_[0u]).frame_id_;
+          // Assert ue_id is in ue_list
           const size_t ue_id = rx_mac_tag_t(event.tags_[0u]).tid_;
-          const size_t radio_buf_id = rx_mac_tag_t(event.tags_[0u]).offset_;
-
-          if (kDebugPrintPacketsFromMac) {
-            const auto* pkt = reinterpret_cast<const MacPacketPacked*>(
-                &agora_memory_->GetDlBits()[ue_id][radio_buf_id *
-                                                   config_->MacBytesNumPerframe(
-                                                       Direction::kDownlink)]);
-            AGORA_LOG_INFO("Agora: frame %d @ offset %zu %zu @ location %zu\n",
-                           frame_id, ue_id, radio_buf_id,
-                           reinterpret_cast<intptr_t>(pkt));
-            std::stringstream ss;
-            for (size_t dl_data_symbol = 0;
-                 dl_data_symbol < config_->Frame().NumDlDataSyms();
-                 dl_data_symbol++) {
-              ss << "Agora: kPacketFromMac, frame " << pkt->Frame()
-                 << ", symbol " << std::to_string(pkt->Symbol()) << " crc "
-                 << std::to_string(pkt->Crc()) << " bytes: ";
-              for (size_t i = 0; i < pkt->PayloadLength(); i++) {
-                ss << std::to_string((pkt->Data()[i])) << ", ";
-              }
-              ss << std::endl;
-              pkt = reinterpret_cast<const MacPacketPacked*>(
-                  reinterpret_cast<const uint8_t*>(pkt) +
-                  config_->MacPacketLength(Direction::kDownlink));
-            }
-            AGORA_LOG_INFO("%s\n", ss.str().c_str());
-          }
 
           auto ue_list = mac_sched_->ScheduledUeList(frame_id, 0u);
           const bool last_ue = this->mac_to_phy_counters_.CompleteTask(

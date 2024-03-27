@@ -74,10 +74,13 @@ class MacThreadClient {
   void ProcessControlInformation();
 
   // Receive user data bits (downlink bits at the MAC thread running at the
-  // server, uplink bits at the MAC thread running at the client) and forward
-  // them to the PHY.
-  void ProcessUdpPacketsFromApps(EventData event);
-  void ProcessUdpPacketsFromAppsClient(const char* payload, EventData event);
+  // server, uplink bits at the MAC thread running at the client)
+  // and save them to ring buffers
+  void ProcessUdpPacketsFromApps();
+
+  // Triggered by message from PHY, read MAC Packets from appropriate buffer
+  // and forward to PHY
+  void SendCodeblocksToPhy(EventData event);
 
   // If Mode::kServer, this thread is running at the Agora server. Else at
   // the client.
@@ -167,6 +170,7 @@ class MacThreadClient {
   std::unique_ptr<DoCRC> crc_obj_;
 
   RBIndicator* ri_;
+  MacMultiRingBuffer<MacPacketPacked> mac_ring_;
 };
 
 #endif  // MAC_THREAD_H_

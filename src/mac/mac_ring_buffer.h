@@ -6,6 +6,7 @@
 
 template <class T>
 class MacMultiRingBuffer {
+ public:
   MacMultiRingBuffer<T>() {}
   void Push(T item, size_t buf_id) {
     if (IsFull(buf_id) == true) {
@@ -20,11 +21,11 @@ class MacMultiRingBuffer {
   T Pop(size_t buf_id) {
     if (IsEmpty(buf_id) == true) {
       AGORA_LOG_ERROR("Buffer Id %zu is empty. Pop failed!\n", buf_id);
-      return nullptr;
+      return empty_;
     }
     size_t& head = head_.at(buf_id);
     T item = r_buff_.at(buf_id).at(head);
-    r_buff_.at(buf_id) = nullptr;
+    r_buff_.at(buf_id).at(head) = empty_;
     head = (head + 1) % kMacBuffSizeMax;
     return item;
   }
@@ -51,4 +52,5 @@ class MacMultiRingBuffer {
   std::array<std::array<T, kMacBuffSizeMax>, kMaxUEs> r_buff_;
   std::array<size_t, kMaxUEs> head_;
   std::array<size_t, kMaxUEs> tail_;
+  T empty_;
 };

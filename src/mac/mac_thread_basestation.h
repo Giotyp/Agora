@@ -77,10 +77,13 @@ class MacThreadBaseStation {
   void SendControlInformation();
 
   // Receive user data bits (downlink bits at the MAC thread running at the
-  // server, uplink bits at the MAC thread running at the client) and forward
-  // them to the PHY.
-  void ProcessUdpPacketsFromApps(EventData event);
-  void ProcessUdpPacketsFromAppsBs(EventData event, const char* payload);
+  // server, uplink bits at the MAC thread running at the client) and
+  // save in the ring buffer
+  void ProcessUdpPacketsFromApps();
+
+  // Triggered by message from PHY, read downlink MAC packets from the ring buffer
+  // and forward them to the PHY.
+  void SendCodeblocksToPhy(EventData event);
 
   Config* const cfg_;
 
@@ -144,6 +147,7 @@ class MacThreadBaseStation {
     Table<int8_t>* dl_bits_buffer_;
     Table<int8_t>* dl_bits_buffer_status_;
   } client_;
+
   // FIFO queue for receiving messages from the master thread
   moodycamel::ConcurrentQueue<EventData>* rx_queue_;
 
@@ -159,6 +163,7 @@ class MacThreadBaseStation {
   //MAC decoding stats
   std::array<size_t, kMaxUEs> valid_mac_packets_;
   std::array<size_t, kMaxUEs> error_mac_packets_;
+  MacMultiRingBuffer<MacPacketPacked> mac_ring_;
 };
 
 #endif  // MAC_THREAD_H_
