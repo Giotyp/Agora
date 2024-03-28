@@ -291,6 +291,11 @@ Config::Config(std::string jsonfilename)
   bs_mac_tx_port_ = tdd_conf.value("bs_mac_tx_port", kMacBaseRemotePort);
   bs_mac_rx_port_ = tdd_conf.value("bs_mac_rx_port", kMacBaseLocalPort);
 
+  ue_app_rx_addr_ = tdd_conf.value("ue_app_rx_addr", "127.0.0.1");
+  bs_app_rx_addr_ = tdd_conf.value("bs_app_rx_addr", "127.0.0.1");
+  ue_app_rx_port_ = tdd_conf.value("ue_app_rx_port", kAppUserLocalPort);
+  bs_app_rx_port_ = tdd_conf.value("bs_app_rx_port", kAppBaseLocalPort);
+
   log_listener_addr_ = tdd_conf.value("log_listener_addr", "");
   log_listener_port_ = tdd_conf.value("log_listener_port", 33300);
 

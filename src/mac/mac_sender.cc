@@ -56,7 +56,8 @@ inline size_t MacSender::TagToTxBuffersIndex(gen_tag_t tag) const {
 MacSender::MacSender(Config* cfg, std::string& data_filename,
                      size_t mac_packet_length, size_t mac_payload_max_length,
                      size_t packets_per_frame, std::string server_address,
-                     size_t server_rx_port,
+                     size_t server_rx_port, std::string data_src_addr,
+                     size_t data_src_port,
                      std::function<size_t(size_t)> get_data_symbol_id,
                      size_t core_offset, size_t worker_thread_num,
                      size_t update_thread_num, size_t frame_duration_us,
@@ -78,6 +79,8 @@ MacSender::MacSender(Config* cfg, std::string& data_filename,
       packets_per_frame_(packets_per_frame),
       server_address_(std::move(server_address)),
       server_rx_port_(server_rx_port),
+      data_src_addr_(std::move(data_src_addr)),
+      data_src_port_(data_src_port),
       get_data_symbol_id_(std::move(get_data_symbol_id)),
       // end -- Ul / Dl     UE / BS
       has_master_thread_(create_thread_for_master) {
@@ -486,7 +489,7 @@ void* MacSender::DataUpdateThread(size_t tid, size_t num_data_sources) {
 #if defined(USE_UDP_DATA_SOURCE)
     // Assumes that the num_data_sources are spread evenly between threads
     sources.emplace_back(std::make_unique<VideoReceiver>(
-        VideoReceiver::kVideoStreamRxPort + (tid * num_data_sources) + source));
+        data_src_addr_, data_src_port_ + (tid * num_data_sources) + source));
 #else
     ///\todo need a list of file names for this
     sources.emplace_back(std::make_unique<FileReceiver>(data_filename_));

@@ -358,7 +358,7 @@ void UeWorker::DoFftData(size_t tag) {
                                    std::to_string(total_dl_symbol_id) +
                                    std::string("_") + std::to_string(ant_id));
   }
-  if (kPrintPhyStats) {
+  if (kPrintPhyStats && !kEnableMac) {
     AGORA_LOG_INFO("Frame: %zu, Symbol: %zu, User: %zu, EVM: %f, SNR: %f\n",
                    frame_id, symbol_id, ant_id, (100.0f * std::sqrt(evms)),
                    (-10.0f * std::log10(evms)));

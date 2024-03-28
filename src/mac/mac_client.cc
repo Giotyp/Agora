@@ -105,7 +105,7 @@ int main(int argc, char* argv[]) {
             cfg.get(), data_filename, cfg->MacPacketLength(Direction::kUplink),
             cfg->MacPayloadMaxLength(Direction::kUplink),
             cfg->MacPacketsPerframe(Direction::kUplink), cfg->UeServerAddr(),
-            cfg->UeMacRxPort(),
+            cfg->UeMacRxPort(), cfg->UeAppRxAddr(), cfg->UeAppRxPort(),
             std::bind(&FrameStats::GetULDataSymbol, cfg->Frame(),
                       std::placeholders::_1),
             thread_start, FLAGS_num_sender_worker_threads,

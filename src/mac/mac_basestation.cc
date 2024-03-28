@@ -106,7 +106,7 @@ int main(int argc, char* argv[]) {
             cfg->MacPacketLength(Direction::kDownlink),
             cfg->MacPayloadMaxLength(Direction::kDownlink),
             cfg->MacPacketsPerframe(Direction::kDownlink), cfg->BsServerAddr(),
-            cfg->BsMacRxPort(),
+            cfg->BsMacRxPort(), cfg->BsAppRxAddr(), cfg->BsAppRxPort(),
             std::bind(&FrameStats::GetDLDataSymbol, cfg->Frame(),
                       std::placeholders::_1),
             thread_start, FLAGS_num_sender_worker_threads,

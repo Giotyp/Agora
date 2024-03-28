@@ -83,7 +83,8 @@ MacThreadClient::MacThreadClient(
     udp_comm_ =
         std::make_unique<UDPComm>(cfg_->UeServerAddr(), udp_server_port,
                                   udp_pkt_len * kMaxUEs * kMaxPktsPerUE, 0);
-
+    next_radio_id_ = 0;
+    next_tx_frame_id_ = 0;
   } else {
     num_dl_mac_bytes_ = cfg->MacBytesNumPerframe(Direction::kDownlink);
     if (num_dl_mac_bytes_ > 0) {
@@ -126,7 +127,6 @@ MacThreadClient::MacThreadClient(
         seek_offset += num_ul_mac_bytes_ * sizeof(int8_t);
       }
     }
-    next_radio_id_ = 0;
   }
 }
 
@@ -451,22 +451,21 @@ void MacThreadClient::ProcessUdpPacketsFromApps() {
            "received!");
   // Data integrity check
   size_t pkt_offset = 0;
-  size_t frame_id = 0;
   size_t symbol_id = 0;
   size_t ue_id = 0;
   for (size_t packet = 0u; packet < num_mac_packets_per_frame; packet++) {
     const auto* pkt =
         reinterpret_cast<const MacPacketPacked*>(&udp_pkt_buf_.at(pkt_offset));
 
-    if (frame_id != pkt->Frame()) {
+    if (next_tx_frame_id_ != pkt->Frame()) {
       AGORA_LOG_ERROR(
           "Received pkt %zu data with unexpected frame id %zu, expected "
           "%d\n",
-          packet, frame_id, pkt->Frame());
+          packet, next_tx_frame_id_, pkt->Frame());
     }
     if (packet == 0) {
       ue_id = pkt->Ue();
-      frame_id = pkt->Frame();
+      next_tx_frame_id_ = pkt->Frame();
     } else {
       if ((symbol_id + 1) != pkt->Symbol()) {
         AGORA_LOG_ERROR("Received out of order symbol id %d, expected %zu\n",
@@ -485,7 +484,7 @@ void MacThreadClient::ProcessUdpPacketsFromApps() {
       std::fprintf(log_file_,
                    "MacThreadClient: Received data from app for frame %zu, ue "
                    "%zu size %zu\n",
-                   frame_id, ue_id, pkt_offset);
+                   next_tx_frame_id_, ue_id, pkt_offset);
 
       for (size_t i = 0; i < pkt_offset; i++) {
         ss << std::to_string((uint8_t)(udp_pkt_buf_[pkt_offset + i])) << " ";
@@ -494,6 +493,11 @@ void MacThreadClient::ProcessUdpPacketsFromApps() {
     }
     mac_ring_.Push(*pkt, ue_id);
     pkt_offset += mac_packet_length;
+  }
+
+  next_radio_id_ = (next_radio_id_ + 1) % cfg_->SpatialStreamsNum();
+  if (next_radio_id_ == 0) {
+    next_tx_frame_id_++;
   }
   // End data integrity check
 }
@@ -530,7 +534,7 @@ void MacThreadClient::SendCodeblocksToPhy(EventData event) {
 
       auto* pkt = reinterpret_cast<MacPacketPacked*>(
           &(*client_.ul_bits_buffer_)[ue_id][dest_pkt_offset]);
-      pkt->Set(frame_id, cfg_->Frame().GetDLSymbol(pkt_id + num_pilot_symbols),
+      pkt->Set(frame_id, cfg_->Frame().GetULSymbol(pkt_id + num_pilot_symbols),
                ue_id, mac_payload_length);
 
       const auto src_packet = mac_ring_.Pop(ue_id);

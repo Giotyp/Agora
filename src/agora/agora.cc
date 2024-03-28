@@ -1390,8 +1390,6 @@ bool Agora::CheckFrameComplete(size_t frame_id) {
     if (config_->Frame().NumDLSyms() > 0) {
       auto ue_list = mac_sched_->ScheduledUeList(frame_id, 0 /*sc_id*/);
       for (const auto& ue_id : ue_list) {
-        std::cout << "Reset dl bits buffer frame " << frame_id << " ue "
-                  << ue_id << std::endl;
         this->agora_memory_->GetDlBitsStatus()[ue_id][frame_id % kFrameWnd] = 0;
       }
     }
