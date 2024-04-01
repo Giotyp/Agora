@@ -23,6 +23,7 @@ class RPStatusMsg {
   size_t status_msg_0_;
   size_t status_msg_1_;
   size_t status_msg_2_;
+  size_t status_msg_3_;
 };
 
 #endif  // RP_CONFIG_H_

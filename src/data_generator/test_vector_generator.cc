@@ -87,9 +87,19 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
 
     uint8_t adapt_ues_array[cfg->FramesToTest()];
 
-    for (size_t i = 0; i < cfg->FramesToTest(); ++i) {
-      adapt_ues_array[i] =
-          cfg->AdaptUes() ? distribution(gen) : cfg->UeAntNum();
+    for (size_t i = 0; i < 2000; ++i) {
+      // adapt_ues_array[i] =
+      //     cfg->AdaptUes() ? distribution(gen) : cfg->UeAntNum();
+      adapt_ues_array[i] = cfg->UeAntNum();
+    }
+    for (size_t i = 2000; i < 4000; ++i) {
+      adapt_ues_array[i] = 6;
+    }
+    for (size_t i = 4000; i < 6000; ++i) {
+      adapt_ues_array[i] = 4;
+    }
+    for (size_t i = 6000; i < cfg->FramesToTest(); ++i) {
+      adapt_ues_array[i] = 2;
     }
     const std::string filename_input = directory + kAdaptUesPrefix + "_ueant" +
                                        std::to_string(cfg->UeAntNum()) + ".bin";
