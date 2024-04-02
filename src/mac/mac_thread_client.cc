@@ -370,11 +370,7 @@ void MacThreadClient::ProcessUdpPacketsFromApps() {
   const size_t packets_required = num_mac_packets_per_frame;
 
   size_t packets_received = 0;
-  size_t current_packet_bytes = 0;
-  size_t current_packet_start_index = 0;
-
   size_t total_bytes_received = 0;
-
   const size_t max_recv_attempts = (packets_required * 10u);
   size_t rx_attempts;
   for (rx_attempts = 0u; rx_attempts < max_recv_attempts; rx_attempts++) {
@@ -398,7 +394,6 @@ void MacThreadClient::ProcessUdpPacketsFromApps() {
       return;
     } else { /* Got some data */
       total_bytes_received += ret;
-      current_packet_bytes += ret;
       packets_received = total_bytes_received / mac_packet_length;
       if (total_bytes_received >= num_mac_bytes_per_frame) break;
       AGORA_LOG_TRACE(
@@ -409,9 +404,7 @@ void MacThreadClient::ProcessUdpPacketsFromApps() {
   if (total_bytes_received != num_mac_bytes_per_frame) {
     AGORA_LOG_ERROR(
         "MacThreadClient: Received %zu : %zu packets with %zu : %zu total "
-        "bytes "
-        "in "
-        "%zu attempts\n",
+        "bytes in %zu attempts\n",
         packets_received, packets_required, total_bytes_received,
         num_mac_bytes_per_frame, rx_attempts);
   } else {

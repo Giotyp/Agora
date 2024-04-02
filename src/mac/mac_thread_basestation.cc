@@ -360,9 +360,15 @@ void MacThreadBaseStation::SendControlInformation() {
 void MacThreadBaseStation::ProcessUdpPacketsFromApps() {
   const size_t max_data_bytes_per_frame =
       cfg_->MacDataBytesNumPerframe(Direction::kDownlink);
+
   const size_t num_mac_packets_per_frame =
       cfg_->MacPacketsPerframe(Direction::kDownlink);
+
   const size_t mac_packet_length = cfg_->MacPacketLength(Direction::kDownlink);
+
+  const size_t num_mac_bytes_per_frame =
+      cfg_->MacBytesNumPerframe(Direction::kDownlink);
+
   if (0 == max_data_bytes_per_frame) {
     return;
   }
@@ -371,10 +377,7 @@ void MacThreadBaseStation::ProcessUdpPacketsFromApps() {
   const size_t packets_required = num_mac_packets_per_frame;
 
   size_t packets_received = 0;
-  size_t current_packet_bytes = 0;
-  size_t current_packet_start_index = 0;
   size_t total_bytes_received = 0;
-
   const size_t max_recv_attempts = (packets_required * 10u);
   size_t rx_attempts;
   for (rx_attempts = 0u; rx_attempts < max_recv_attempts; rx_attempts++) {
@@ -400,61 +403,25 @@ void MacThreadBaseStation::ProcessUdpPacketsFromApps() {
       return;
     } else { /* Got some data */
       total_bytes_received += ret;
-      current_packet_bytes += ret;
-
-      // std::printf(
-      //    "Received %zu bytes packet number %zu packet size %zu total %zu\n",
-      //    ret, packets_received, total_bytes_received, current_packet_bytes);
-
-      // While we have packets remaining and a header to process
-      const size_t header_size = sizeof(MacPacketHeaderPacked);
-      while ((packets_received < packets_required) &&
-             (current_packet_bytes >= header_size)) {
-        // See if we have enough data and process the MacPacket header
-        const auto* rx_mac_packet_header =
-            reinterpret_cast<const MacPacketPacked*>(
-                &udp_pkt_buf_.at(current_packet_start_index));
-
-        const size_t current_packet_size =
-            header_size + rx_mac_packet_header->PayloadLength();
-
-        // std::printf("Packet number %zu @ %zu packet size %d:%zu total %zu\n",
-        //            packets_received, current_packet_start_index,
-        //            rx_mac_packet_header->datalen_, current_packet_size,
-        //            current_packet_bytes);
-
-        if (current_packet_bytes >= current_packet_size) {
-          current_packet_bytes = current_packet_bytes - current_packet_size;
-          current_packet_start_index =
-              current_packet_start_index + current_packet_size;
-          packets_received++;
-        } else {
-          // Don't have the entire packet, keep trying
-          break;
-        }
-      }
-      AGORA_LOG_FRAME(
+      packets_received = total_bytes_received / mac_packet_length;
+      if (total_bytes_received >= num_mac_bytes_per_frame) break;
+      AGORA_LOG_TRACE(
           "MacThreadBaseStation: Received %zu : %zu bytes in packet %zu : "
           "%zu\n",
           ret, total_bytes_received, packets_received, packets_required);
     }
-
-    // Check for completion
-    if (packets_received == packets_required) {
-      break;
-    }
   }  // end rx attempts
 
-  if (packets_received != packets_required) {
+  if (total_bytes_received != num_mac_bytes_per_frame) {
     AGORA_LOG_ERROR(
-        "MacThreadBaseStation: Received %zu : %zu packets with %zu total "
-        "bytes "
-        "in %zu attempts\n",
-        packets_received, packets_required, total_bytes_received, rx_attempts);
+        "MacThreadBaseStation: Received %zu : %zu packets with %zu : %zu total "
+        "bytes in %zu attempts\n",
+        packets_received, packets_required, total_bytes_received,
+        num_mac_bytes_per_frame, rx_attempts);
   } else {
     AGORA_LOG_FRAME("MacThreadClient: Received Mac Frame Data\n");
   }
-  RtAssert(packets_received == packets_required,
+  RtAssert(total_bytes_received == num_mac_bytes_per_frame,
            "MacThreadBaseStation: ProcessUdpPacketsFromApps incorrect data "
            "received!");
   // Data integrity check
