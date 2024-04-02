@@ -218,38 +218,39 @@ void MacThreadBaseStation::ProcessCodeblocksFromPhy(EventData event) {
       // Destination only contains "payload"
       const size_t mac_data_bytes_per_frame =
           cfg_->MacDataBytesNumPerframe(Direction::kUplink);
+
       const size_t data_symbol_index_start =
           cfg_->Frame().GetULSymbol(num_pilot_symbols);
+
       const size_t data_symbol_index_end = cfg_->Frame().GetULSymbolLast();
       const size_t num_mac_packets_per_frame =
           cfg_->MacPacketsPerframe(Direction::kUplink);
-      const size_t mac_payload_max_length =
+
+      const size_t mac_payload_length =
           cfg_->MacPayloadMaxLength(Direction::kUplink);
-      const size_t dest_packet_size = mac_payload_max_length;
 
       // TODO: enable ARQ and ensure reliable data goes to app
-      const size_t frame_data_offset =
-          (symbol_array_index - num_pilot_symbols) * dest_packet_size;
+      const size_t frame_data_offset = data_symbol_idx_ul * mac_payload_length;
 
       // Who's junk is better? No reason to copy currupted data
-      server_.n_filled_in_frame_.at(ue_id) += dest_packet_size;
+      server_.n_filled_in_frame_.at(ue_id) += mac_payload_length;
 
       std::stringstream ss;  // Debug formatting
       ss << "MacThreadBasestation: Received frame " << pkt->Frame() << ":"
          << frame_id << " symbol " << pkt->Symbol() << ":" << symbol_id
          << " user " << pkt->Ue() << ":" << ue_id << " length "
-         << pkt->PayloadLength() << ":" << dest_packet_size << " crc "
+         << pkt->PayloadLength() << ":" << mac_payload_length << " crc "
          << pkt->Crc() << " copied to offset " << frame_data_offset
          << std::endl;
 
-      if (kLogMacPackets) {
+      if (kLogRxMacPackets) {
         ss << "Header Info:" << std::endl
            << "FRAME_ID: " << pkt->Frame() << std::endl
            << "SYMBOL_ID: " << pkt->Symbol() << std::endl
            << "UE_ID: " << pkt->Ue() << std::endl
            << "DATLEN: " << pkt->PayloadLength() << std::endl
            << "PAYLOAD:" << std::endl;
-        for (size_t i = 0; i < dest_packet_size; i++) {
+        for (size_t i = 0; i < mac_payload_length; i++) {
           ss << std::to_string(pkt->Data()[i]) << " ";
         }
         ss << std::endl;
@@ -257,7 +258,7 @@ void MacThreadBaseStation::ProcessCodeblocksFromPhy(EventData event) {
 
       bool data_valid = false;
       // Data validity check
-      if ((static_cast<size_t>(pkt->PayloadLength()) <= dest_packet_size) &&
+      if ((static_cast<size_t>(pkt->PayloadLength()) <= mac_payload_length) &&
           ((pkt->Symbol() >= data_symbol_index_start) &&
            (pkt->Symbol() <= data_symbol_index_end)) &&
           (pkt->Ue() <= cfg_->UeAntNum())) {
@@ -279,8 +280,8 @@ void MacThreadBaseStation::ProcessCodeblocksFromPhy(EventData event) {
         std::memcpy(&server_.frame_data_.at(ue_id).at(frame_data_offset),
                     pkt->Data(), pkt->PayloadLength());
 
-        server_.data_size_.at(ue_id).at(
-            symbol_array_index - num_pilot_symbols) = pkt->PayloadLength();
+        server_.data_size_.at(ue_id).at(data_symbol_idx_ul) =
+            pkt->PayloadLength();
 
       } else {
         if (pkt->Ue() < kMaxUEs) {
@@ -291,8 +292,7 @@ void MacThreadBaseStation::ProcessCodeblocksFromPhy(EventData event) {
 
         AGORA_LOG_ERROR("%s", ss.str().c_str());
         // Set the default to 0 valid data bytes
-        server_.data_size_.at(ue_id).at(symbol_array_index -
-                                        num_pilot_symbols) = 0;
+        server_.data_size_.at(ue_id).at(data_symbol_idx_ul) = 0;
       }
       std::fprintf(log_file_, "%s", ss.str().c_str());
       ss.str("");
@@ -306,7 +306,7 @@ void MacThreadBaseStation::ProcessCodeblocksFromPhy(EventData event) {
         size_t dest_offset = 0;
         for (size_t packet = 0; packet < num_mac_packets_per_frame; packet++) {
           const size_t rx_packet_size = server_.data_size_.at(ue_id).at(packet);
-          if ((rx_packet_size < mac_payload_max_length) || (shifted == true)) {
+          if ((rx_packet_size < mac_payload_length) || (shifted == true)) {
             shifted = true;
             if (rx_packet_size > 0) {
               std::memmove(&server_.frame_data_.at(ue_id).at(dest_offset),
@@ -315,7 +315,7 @@ void MacThreadBaseStation::ProcessCodeblocksFromPhy(EventData event) {
             }
           }
           dest_offset += rx_packet_size;
-          src_offset += mac_payload_max_length;
+          src_offset += mac_payload_length;
         }
 
         if (dest_offset > 0) {
@@ -327,7 +327,7 @@ void MacThreadBaseStation::ProcessCodeblocksFromPhy(EventData event) {
            << ", ue " << ue_id << ", size " << dest_offset << ":"
            << mac_data_bytes_per_frame << std::endl;
 
-        if (kLogMacPackets) {
+        if (kLogRxMacPackets) {
           std::fprintf(stdout, "%s", ss.str().c_str());
         }
 
@@ -486,7 +486,7 @@ void MacThreadBaseStation::ProcessUdpPacketsFromApps() {
           "Received pkt %zu data with unexpected UE id %zu, expected %d\n",
           packet, ue_id, pkt->Ue());
     }
-    if (kLogMacPackets) {
+    if (kLogTxMacPackets) {
       std::stringstream ss;
       std::fprintf(
           log_file_,
@@ -558,7 +558,7 @@ void MacThreadBaseStation::SendCodeblocksToPhy(EventData event) {
 #if ENABLE_RB_IND
       pkt->rb_indicator_ = ri;
 #endif
-      if (kLogMacPackets) {
+      if (kLogTxMacPackets) {
         std::stringstream ss;
 
         ss << "MacThreadBasestation: created packet frame " << frame_id

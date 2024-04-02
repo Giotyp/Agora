@@ -315,7 +315,7 @@ void* MacSender::WorkerThread(size_t tid) {
   PinToCoreWithOffset(ThreadType::kWorkerTX,
                       (core_offset_ + 1 + update_thread_num_), tid);
 
-  // Wait for all Sender threads (including master) to start runnung
+  // Wait for all Sender threads (including master) to start running
   num_workers_ready_atomic.fetch_add(1);
   while (num_workers_ready_atomic.load() <
          (worker_thread_num_ + 1 + update_thread_num_)) {
@@ -379,11 +379,9 @@ void* MacSender::WorkerThread(size_t tid) {
           const auto* tx_packet =
               reinterpret_cast<const MacPacketPacked*>(mac_packet_location);
 
-          const size_t mac_packet_tx_size =
-              mac_packet_length_ -
-              (mac_payload_max_length_ - tx_packet->PayloadLength());
+          const size_t mac_packet_tx_size = mac_packet_length_;
 
-          AGORA_LOG_TRACE(
+          AGORA_LOG_INFO(
               "MacSender[%zu] sending frame %d:%d, packet %zu, symbol %d, size "
               "%zu\n",
               tid, tx_packet->Frame(), tag.frame_id_, packet,

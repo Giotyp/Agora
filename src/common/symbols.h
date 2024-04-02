@@ -244,7 +244,8 @@ static constexpr bool kRecordCalibrationMats = false;
 static constexpr bool kDebugRadioTX = false;
 static constexpr bool kDebugRadioRX = false;
 
-static constexpr bool kLogMacPackets = false;
+static constexpr bool kLogTxMacPackets = true;
+static constexpr bool kLogRxMacPackets = true;
 
 enum class ThreadType {
   kMaster,

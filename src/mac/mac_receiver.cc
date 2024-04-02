@@ -76,18 +76,16 @@ void* MacReceiver::LoopRecv(size_t tid) {
       phy_port_ + ue_id);
 
   // Create a rx buffer
-  const size_t max_packet_length = data_bytes_;
-  auto* rx_buffer = new std::byte[max_packet_length];
+  auto* rx_buffer = new std::byte[data_bytes_];
 
   while ((SignalHandler::GotExitSignal() == false) &&
          (cfg_->Running() == true)) {
     const ssize_t recvlen = udp_server->Recv(phy_address_, phy_port_ + ue_id,
-                                             &rx_buffer[0u], max_packet_length);
+                                             &rx_buffer[0u], data_bytes_);
     if (recvlen < 0) {
       std::perror("recv failed");
       throw std::runtime_error("MacReceiver: recv failed");
-    } else if ((recvlen > 0) &&
-               static_cast<size_t>(recvlen) <= max_packet_length) {
+    } else if ((recvlen > 0) && static_cast<size_t>(recvlen) <= data_bytes_) {
       if (enable_udp_output_) {
         udp_streamer->Send(udp_dest_address_, udp_dest_port_ + ue_id,
                            &rx_buffer[0u], recvlen);
@@ -95,17 +93,17 @@ void* MacReceiver::LoopRecv(size_t tid) {
 
       if (kDebugMacReceiver) {
         AGORA_LOG_INFO("MacReceiver[%zu]: Data Bytes: %zu:%zu, Data:", tid,
-                       recvlen, max_packet_length);
+                       recvlen, data_bytes_);
         for (size_t i = 0; i < static_cast<size_t>(recvlen); i++) {
           AGORA_LOG_INFO(" %02x", static_cast<uint8_t>(rx_buffer[i]));
         }
         AGORA_LOG_INFO("\n");
       }
 
-      if (static_cast<size_t>(recvlen) != max_packet_length) {
+      if (static_cast<size_t>(recvlen) != data_bytes_) {
         AGORA_LOG_INFO(
             "MacReceiver[%zu]: received less than max data bytes %zu:%zu\n",
-            tid, recvlen, max_packet_length);
+            tid, recvlen, data_bytes_);
       }
     }
   }
