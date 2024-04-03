@@ -86,6 +86,7 @@ MacThreadClient::MacThreadClient(
     next_radio_id_ = 0;
     next_tx_frame_id_ = 0;
   } else {
+    num_dl_mac_bytes_ = cfg->MacBytesNumPerframe(Direction::kDownlink);
     if (num_dl_mac_bytes_ > 0) {
       // Downlink LDPC input bits
       dl_mac_bytes_.Calloc(cfg_->UeAntNum(), num_dl_mac_bytes_,
@@ -180,152 +181,164 @@ void MacThreadClient::ProcessCodeblocksFromPhy(EventData event) {
   // Helper variables (changes with bs / user)
   const size_t num_pilot_symbols = cfg_->Frame().ClientDlPilotSymbols();
   const size_t symbol_array_index = cfg_->Frame().GetDLSymbolIdx(symbol_id);
-  const size_t data_symbol_index_start =
-      cfg_->Frame().GetDLSymbol(num_pilot_symbols);
-  const size_t data_symbol_index_end = cfg_->Frame().GetDLSymbolLast();
-  const size_t mac_data_bytes_per_frame =
-      cfg_->MacDataBytesNumPerframe(Direction::kDownlink);
-  const size_t num_mac_packets_per_frame =
-      cfg_->MacPacketsPerframe(Direction::kDownlink);
-  const size_t dest_packet_size =
-      cfg_->MacPayloadMaxLength(Direction::kDownlink);
-  const size_t data_symbol_idx_dl = symbol_array_index - num_pilot_symbols;
-  const size_t symbol_offset =
-      cfg_->GetTotalDataSymbolIdxDl(frame_id, data_symbol_idx_dl);
-  const size_t frame_slot = (frame_id % kFrameWnd);
-  const size_t mac_packet_len = cfg_->MacPacketLength(Direction::kDownlink);
+  if (symbol_array_index >= num_pilot_symbols) {
+    const size_t data_symbol_idx_dl = symbol_array_index - num_pilot_symbols;
+    const size_t dest_packet_size =
+        cfg_->MacPayloadMaxLength(Direction::kDownlink);
+    const size_t frame_slot = (frame_id % kFrameWnd);
 
-  const int8_t* src_data =
-      decoded_buffer_[frame_slot][data_symbol_idx_dl][ue_id];
-  if (kEnableMac == false) {
-    if (kPrintPhyStats == true) {
-      phy_stats_->UpdateDecodedBits(ue_id, symbol_offset, frame_slot,
-                                    dest_packet_size * 8);
-      phy_stats_->IncrementDecodedBlocks(ue_id, symbol_offset, frame_slot);
-      size_t block_error(0);
-      for (size_t i = 0; i < mac_packet_len; i++) {
-        int8_t rx_byte = src_data[i];
-        auto tx_byte =
-            this->dl_mac_bytes_[ue_id][data_symbol_idx_dl * mac_packet_len + i];
-        phy_stats_->UpdateBitErrors(ue_id, symbol_offset, frame_slot, tx_byte,
-                                    rx_byte);
-        if (rx_byte != tx_byte) {
-          block_error++;
-        }
-      }
-      phy_stats_->UpdateBlockErrors(ue_id, symbol_offset, frame_slot,
-                                    block_error);
-    }
-  } else {
-    // The decoded symbol knows nothing about the padding / storage of the data
-    const auto* pkt = reinterpret_cast<const MacPacketPacked*>(src_data);
-    // Destination only contains "payload"
-
-    // TODO: enable ARQ and ensure reliable data goes to app
-    const size_t frame_data_offset = data_symbol_idx_dl * dest_packet_size;
-
-    // Who's junk is better? No reason to copy currupted data
-    server_.n_filled_in_frame_.at(ue_id) += dest_packet_size;
-    std::stringstream ss;  // Debug-only
-    ss << "MacThreadClient: Received frame " << pkt->Frame() << ":" << frame_id
-       << " symbol " << pkt->Symbol() << ":" << symbol_id << " user "
-       << pkt->Ue() << ":" << ue_id << " length " << pkt->PayloadLength() << ":"
-       << cfg_->MacPayloadMaxLength(Direction::kDownlink) << " crc "
-       << pkt->Crc() << " copied to offset " << frame_data_offset << std::endl;
-
-    if (kLogRxMacPackets) {
-      ss << "Header Info:" << std::endl
-         << "FRAME_ID: " << pkt->Frame() << std::endl
-         << "SYMBOL_ID: " << pkt->Symbol() << std::endl
-         << "UE_ID: " << pkt->Ue() << std::endl
-         << "DATLEN: " << pkt->PayloadLength() << std::endl
-         << "PAYLOAD:" << std::endl;
-      for (size_t i = 0; i < cfg_->MacPayloadMaxLength(Direction::kDownlink);
-           i++) {
-        ss << std::to_string(pkt->Data()[i]) << " ";
-      }
-      ss << std::endl;
-    }
-
-    bool data_valid = false;
-    // Data validity check
-    if ((static_cast<size_t>(pkt->PayloadLength()) <= dest_packet_size) &&
-        ((pkt->Symbol() >= data_symbol_index_start) &&
-         (pkt->Symbol() <= data_symbol_index_end)) &&
-        (pkt->Ue() <= cfg_->UeAntNum())) {
-      auto crc = static_cast<uint16_t>(
-          crc_obj_->CalculateCrc24(pkt->Data(), pkt->PayloadLength()) & 0xFFFF);
-
-      data_valid = (crc == pkt->Crc());
-    }
-
-    if (data_valid) {
-      AGORA_LOG_SYMBOL("%s", ss.str().c_str());
-      AGORA_LOG_TRACE(
-          "Looking at index ue %zu:%zu, offset %zu:%zu, length %d\nFrame "
-          "Data "
-          "size: %zu:%zu  %zu:%zu\n",
-          ue_id, server_.frame_data_.size(), frame_data_offset,
-          server_.frame_data_.at(ue_id).size(), pkt->PayloadLength(), ue_id,
-          server_.data_size_.size(), data_symbol_idx_dl,
-          server_.data_size_.at(ue_id).size());
-      /// Spot to be optimized #1
-      std::memcpy(&server_.frame_data_.at(ue_id).at(frame_data_offset),
-                  pkt->Data(), pkt->PayloadLength());
-
-      server_.data_size_.at(ue_id).at(data_symbol_idx_dl) =
-          pkt->PayloadLength();
-
-    } else {
-      ss << "  *****Failed Data integrity check - invalid parameters"
-         << std::endl;
-
-      AGORA_LOG_ERROR("%s", ss.str().c_str());
-      // Set the default to 0 valid data bytes
-      server_.data_size_.at(ue_id).at(data_symbol_idx_dl) = 0;
-    }
-    std::fprintf(log_file_, "%s", ss.str().c_str());
-    ss.str("");
-
-    // When the frame is full, send it to the application
-    if (server_.n_filled_in_frame_.at(ue_id) == mac_data_bytes_per_frame) {
-      server_.n_filled_in_frame_.at(ue_id) = 0;
-      /// Spot to be optimized #2 -- left shift data over to remove padding
-      bool shifted = false;
-      size_t src_offset = 0;
-      size_t dest_offset = 0;
-      for (size_t packet = 0; packet < num_mac_packets_per_frame; packet++) {
-        const size_t rx_packet_size = server_.data_size_.at(ue_id).at(packet);
-        if (rx_packet_size < dest_packet_size || (shifted == true)) {
-          shifted = true;
-          if (rx_packet_size > 0) {
-            std::memmove(&server_.frame_data_.at(ue_id).at(dest_offset),
-                         &server_.frame_data_.at(ue_id).at(src_offset),
-                         rx_packet_size);
+    const int8_t* src_data =
+        decoded_buffer_[frame_slot][data_symbol_idx_dl][ue_id];
+    if (kEnableMac == false) {
+      if (kPrintPhyStats == true) {
+        const size_t symbol_offset =
+            cfg_->GetTotalDataSymbolIdxDl(frame_id, data_symbol_idx_dl);
+        const size_t mac_packet_len =
+            cfg_->MacPacketLength(Direction::kDownlink);
+        phy_stats_->UpdateDecodedBits(ue_id, symbol_offset, frame_slot,
+                                      dest_packet_size * 8);
+        phy_stats_->IncrementDecodedBlocks(ue_id, symbol_offset, frame_slot);
+        size_t block_error(0);
+        for (size_t i = 0; i < mac_packet_len; i++) {
+          int8_t rx_byte = src_data[i];
+          auto tx_byte =
+              this->dl_mac_bytes_[ue_id]
+                                 [data_symbol_idx_dl * mac_packet_len + i];
+          phy_stats_->UpdateBitErrors(ue_id, symbol_offset, frame_slot, tx_byte,
+                                      rx_byte);
+          if (rx_byte != tx_byte) {
+            block_error++;
           }
         }
-        dest_offset += rx_packet_size;
-        src_offset += cfg_->MacPayloadMaxLength(Direction::kDownlink);
+        phy_stats_->UpdateBlockErrors(ue_id, symbol_offset, frame_slot,
+                                      block_error);
       }
+    } else {
+      // The decoded symbol knows nothing about the padding / storage of the data
+      const auto* pkt = reinterpret_cast<const MacPacketPacked*>(src_data);
 
-      if (dest_offset > 0) {
-        udp_comm_->Send(kMacRemoteHostname, cfg_->UeMacTxPort() + ue_id,
-                        &server_.frame_data_.at(ue_id).at(0), dest_offset);
-      }
+      const size_t data_symbol_index_start =
+          cfg_->Frame().GetDLSymbol(num_pilot_symbols);
 
-      ss << "MacThreadClient: Sent data for frame " << frame_id << ", ue "
-         << ue_id << ", size " << dest_offset << ":" << mac_data_bytes_per_frame
+      const size_t data_symbol_index_end = cfg_->Frame().GetDLSymbolLast();
+
+      const size_t mac_data_bytes_per_frame =
+          cfg_->MacDataBytesNumPerframe(Direction::kDownlink);
+
+      const size_t num_mac_packets_per_frame =
+          cfg_->MacPacketsPerframe(Direction::kDownlink);
+      // Destination only contains "payload"
+
+      // TODO: enable ARQ and ensure reliable data goes to app
+      const size_t frame_data_offset = data_symbol_idx_dl * dest_packet_size;
+
+      // Who's junk is better? No reason to copy currupted data
+      server_.n_filled_in_frame_.at(ue_id) += dest_packet_size;
+      std::stringstream ss;  // Debug-only
+      ss << "MacThreadClient: Received frame " << pkt->Frame() << ":"
+         << frame_id << " symbol " << pkt->Symbol() << ":" << symbol_id
+         << " user " << pkt->Ue() << ":" << ue_id << " length "
+         << pkt->PayloadLength() << ":"
+         << cfg_->MacPayloadMaxLength(Direction::kDownlink) << " crc "
+         << pkt->Crc() << " copied to offset " << frame_data_offset
          << std::endl;
 
       if (kLogRxMacPackets) {
-        std::fprintf(stdout, "%s", ss.str().c_str());
+        ss << "Header Info:" << std::endl
+           << "FRAME_ID: " << pkt->Frame() << std::endl
+           << "SYMBOL_ID: " << pkt->Symbol() << std::endl
+           << "UE_ID: " << pkt->Ue() << std::endl
+           << "DATLEN: " << pkt->PayloadLength() << std::endl
+           << "PAYLOAD:" << std::endl;
+        for (size_t i = 0; i < cfg_->MacPayloadMaxLength(Direction::kDownlink);
+             i++) {
+          ss << std::to_string(pkt->Data()[i]) << " ";
+        }
+        ss << std::endl;
       }
 
-      for (size_t i = 0u; i < dest_offset; i++) {
-        ss << static_cast<uint8_t>(server_.frame_data_.at(ue_id).at(i)) << " ";
+      bool data_valid = false;
+      // Data validity check
+      if ((static_cast<size_t>(pkt->PayloadLength()) <= dest_packet_size) &&
+          ((pkt->Symbol() >= data_symbol_index_start) &&
+           (pkt->Symbol() <= data_symbol_index_end)) &&
+          (pkt->Ue() <= cfg_->UeAntNum())) {
+        auto crc = static_cast<uint16_t>(
+            crc_obj_->CalculateCrc24(pkt->Data(), pkt->PayloadLength()) &
+            0xFFFF);
+
+        data_valid = (crc == pkt->Crc());
+      }
+
+      if (data_valid) {
+        AGORA_LOG_SYMBOL("%s", ss.str().c_str());
+        AGORA_LOG_TRACE(
+            "Looking at index ue %zu:%zu, offset %zu:%zu, length %d\nFrame "
+            "Data "
+            "size: %zu:%zu  %zu:%zu\n",
+            ue_id, server_.frame_data_.size(), frame_data_offset,
+            server_.frame_data_.at(ue_id).size(), pkt->PayloadLength(), ue_id,
+            server_.data_size_.size(), data_symbol_idx_dl,
+            server_.data_size_.at(ue_id).size());
+        /// Spot to be optimized #1
+        std::memcpy(&server_.frame_data_.at(ue_id).at(frame_data_offset),
+                    pkt->Data(), pkt->PayloadLength());
+
+        server_.data_size_.at(ue_id).at(data_symbol_idx_dl) =
+            pkt->PayloadLength();
+
+      } else {
+        ss << "  *****Failed Data integrity check - invalid parameters"
+           << std::endl;
+
+        AGORA_LOG_ERROR("%s", ss.str().c_str());
+        // Set the default to 0 valid data bytes
+        server_.data_size_.at(ue_id).at(data_symbol_idx_dl) = 0;
       }
       std::fprintf(log_file_, "%s", ss.str().c_str());
       ss.str("");
+
+      // When the frame is full, send it to the application
+      if (server_.n_filled_in_frame_.at(ue_id) == mac_data_bytes_per_frame) {
+        server_.n_filled_in_frame_.at(ue_id) = 0;
+        /// Spot to be optimized #2 -- left shift data over to remove padding
+        bool shifted = false;
+        size_t src_offset = 0;
+        size_t dest_offset = 0;
+        for (size_t packet = 0; packet < num_mac_packets_per_frame; packet++) {
+          const size_t rx_packet_size = server_.data_size_.at(ue_id).at(packet);
+          if (rx_packet_size < dest_packet_size || (shifted == true)) {
+            shifted = true;
+            if (rx_packet_size > 0) {
+              std::memmove(&server_.frame_data_.at(ue_id).at(dest_offset),
+                           &server_.frame_data_.at(ue_id).at(src_offset),
+                           rx_packet_size);
+            }
+          }
+          dest_offset += rx_packet_size;
+          src_offset += cfg_->MacPayloadMaxLength(Direction::kDownlink);
+        }
+
+        if (dest_offset > 0) {
+          udp_comm_->Send(kMacRemoteHostname, cfg_->UeMacTxPort() + ue_id,
+                          &server_.frame_data_.at(ue_id).at(0), dest_offset);
+        }
+
+        ss << "MacThreadClient: Sent data for frame " << frame_id << ", ue "
+           << ue_id << ", size " << dest_offset << ":"
+           << mac_data_bytes_per_frame << std::endl;
+
+        if (kLogRxMacPackets) {
+          std::fprintf(stdout, "%s", ss.str().c_str());
+        }
+
+        for (size_t i = 0u; i < dest_offset; i++) {
+          ss << static_cast<uint8_t>(server_.frame_data_.at(ue_id).at(i))
+             << " ";
+        }
+        std::fprintf(log_file_, "%s", ss.str().c_str());
+        ss.str("");
+      }
     }
   }
   RtAssert(
