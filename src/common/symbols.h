@@ -348,6 +348,9 @@ static constexpr size_t kDefaultMcsIndex = 10;
 // Number of cellular frames tracked by Agora stats
 static constexpr size_t kNumStatsFrames = 10000;
 
+// If true, enable adapting UEs every frame
+static constexpr bool kIsAdaptUesEveryFrameEnabled = false;
+
 // If true, enable timing measurements in workers
 static constexpr bool kIsWorkerTimingEnabled = true;
 

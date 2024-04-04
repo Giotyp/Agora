@@ -87,20 +87,27 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
 
     uint8_t adapt_ues_array[cfg->FramesToTest()];
 
-    for (size_t i = 0; i < 2000; ++i) {
-      // adapt_ues_array[i] =
-      //     cfg->AdaptUes() ? distribution(gen) : cfg->UeAntNum();
-      adapt_ues_array[i] = cfg->UeAntNum();
+    if (cfg->AdaptUes()) {
+      if (kIsAdaptUesEveryFrameEnabled) {
+        for (size_t i = 0; i < cfg->FramesToTest(); ++i) {
+          adapt_ues_array[i] = distribution(gen);
+        }
+      } else {
+        size_t num_ues_adaptations = 10;
+        for (size_t i = 0; i < num_ues_adaptations; ++i) {
+          size_t sampled_ue_num = distribution(gen);
+          for (size_t j = (cfg->FramesToTest() / num_ues_adaptations) * i;
+               j < (cfg->FramesToTest() / num_ues_adaptations) * (i + 1); ++j) {
+            adapt_ues_array[j] = sampled_ue_num;
+          }
+        }
+      }
+    } else {
+      for (size_t i = 0; i < cfg->FramesToTest(); ++i) {
+        adapt_ues_array[i] = cfg->UeAntNum();
+      }
     }
-    for (size_t i = 2000; i < 4000; ++i) {
-      adapt_ues_array[i] = 6;
-    }
-    for (size_t i = 4000; i < 6000; ++i) {
-      adapt_ues_array[i] = 4;
-    }
-    for (size_t i = 6000; i < cfg->FramesToTest(); ++i) {
-      adapt_ues_array[i] = 2;
-    }
+
     const std::string filename_input = directory + kAdaptUesPrefix + "_ueant" +
                                        std::to_string(cfg->UeAntNum()) + ".bin";
     AGORA_LOG_INFO("Saving adaptable number of UEs across frames to %s\n",

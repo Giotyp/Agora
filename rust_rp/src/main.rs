@@ -20,6 +20,7 @@ trait AgoraEnv {
     fn compute_state(&mut self, curr_cores: u16, curr_users: u16, curr_latency: u16) -> u64;
     fn get_num_states(&mut self) -> u64;
     fn get_num_actions(&mut self) -> u16;
+    fn get_curr_users(&mut self, state: u64) -> u16;
     fn agora_to_rl_index_mapping(&mut self, index_param: u16) -> u16;
     fn rl_to_agora_index_mapping(&mut self, index_param: u16) -> u16;
     fn compute_absolute_latency(&mut self, curr_cores: u16, curr_users: u16) -> f32;
@@ -121,6 +122,12 @@ impl AgoraEnv for MyAgoraEnv {
     fn get_num_actions(&mut self) -> u16 {
 
         self.num_actions
+    }
+
+    fn get_curr_users(&mut self, state: u64) -> u16 {
+        let curr_users = (state / self.num_max_cores as u64) % self.num_users as u64;
+
+        curr_users as u16
     }
 
     fn agora_to_rl_index_mapping(&mut self, index_param: u16) -> u16 {
@@ -542,29 +549,29 @@ async fn main() -> io::Result<()> {
                 let gamma = 0.9;  // discount factor
                 let epsilon = 0.1;  // exploration-exploitation trade-off
         
-                let num_episodes = 1;
-                let terminate_count = 100; // Epochs count to terminate training when not converging
-                let consecutive_epochs = 100; // Number of consecutive epochs with same state and reward to treat the training converged. Applicable when the target reward is the least negative.
+                let num_episodes = 1000;
+                let terminate_count = 1000; // Epochs count to terminate training when not converging
+                let consecutive_epochs = 5; // Number of consecutive epochs with same state and reward to treat the training converged. Applicable when the target reward is the least negative.
 
                 // Create an instance of the agora environment using the 'new' function
                 let mut agora_env = MyAgoraEnv::new();
                 agora_env.set_initial_values(num_max_cores, num_min_cores, num_users, num_latency_levels, num_actions, max_latency_limit, ma_window_size as u16, data_outlier_percentage, rewards, 0, false); // Set initial state to 2 and done to false
-        
+
                 let num_states = agora_env.get_num_states();
                 // println!("num_states {:?}\n", num_states);
 
                 // Try to open existing cores_absolute_latency file
                 let file_result = OpenOptions::new().read(true).open("cores_absolute_latency.json");
 
-                let mut cores_absolute_latency: Vec<Vec<f32>> = if let Ok(file) = file_result {
+                let mut cores_absolute_latency: Vec<Vec<Vec<f32>>> = if let Ok(file) = file_result {
                     // Read existing cores_absolute_latency content and parse JSON
                     let reader = BufReader::new(file);
-                    let content: Vec<Vec<f32>> = serde_json::from_reader(reader).unwrap_or_else(|_| vec![vec![0.0; 1]; num_max_cores as usize]);
+                    let content: Vec<Vec<Vec<f32>>> = serde_json::from_reader(reader).unwrap_or_else(|_| vec![vec![vec![0.0; num_latency_levels as usize]; num_users as usize]; num_max_cores as usize]);
                     println!("cores_absolute_latency loaded from cores_absolute_latency.json");
                     content
                 } else {
                     println!("cores_absolute_latency.json does not exist. Creating cores_absolute_latency.json and initializing with zeros");
-                    vec![vec![0.0; 1]; num_max_cores as usize]
+                    vec![vec![vec![0.0; num_latency_levels as usize]; num_users as usize]; num_max_cores as usize]
                 };
             
                 // Initialize q_table with zeros only if q_table.json doesn't exist
@@ -601,8 +608,8 @@ async fn main() -> io::Result<()> {
                         // let mut state = agora_env.reset();
                         // state = 269;
                         let mut rng = rand::thread_rng();
-                        // let reset_cores = rng.gen_range((num_min_cores as u16)..(num_max_cores as u16));
-                        let reset_cores = 3;
+                        let reset_cores = rng.gen_range((num_min_cores as u16)..(num_max_cores as u16));
+                        // let reset_cores = 9;
                         let mut epochs = 0;
                         let mut previous_reward = 0;
                         let mut cont_epochs_count_in_target_reward = 1;
@@ -679,6 +686,8 @@ async fn main() -> io::Result<()> {
 
                             println!("Episode {:?}, Epoch {:?}\n", episode, epochs);
                             agora_env.set(state);
+                            let users_before_action = agora_env.get_curr_users(state);
+                            let users_before_action_ag = agora_env.rl_to_agora_index_mapping(users_before_action as u16);
                             // agora_env.print_state(state, UDP_WAIT_TIME).await;
                             println!("elements of state (before update): {}", state);
                             for &row_element in &q_table[state as usize] {
@@ -693,7 +702,7 @@ async fn main() -> io::Result<()> {
                                 action = argmax_row(&q_table, state as usize);
                                 println!("Exploit: action for state {}: {} (0 - No change in cores, 1 - Add one core, 2 - Remove one core)", state, action);
                             }
-                            action = 0;
+                            // action = 0;
 
                             if is_real_agora == true {
                                 let ma_absolute_latency;
@@ -701,7 +710,9 @@ async fn main() -> io::Result<()> {
                                 (ma_absolute_latency, agora_cores, agora_users, next_state, reward, done) = agora_env.step_real(&mut socket, action as u16).await?;
                                 println!("step_output: ma_absolute_latency {}, current_cores {}, current_users {}, next_state {}, reward {}, done {}\n",
                                     ma_absolute_latency, agora_cores, agora_users, next_state, reward, done);
-                                cores_absolute_latency[agora_cores as usize - 1].push(ma_absolute_latency);
+                                let agora_cores_rl = agora_env.agora_to_rl_index_mapping(agora_cores as u16);
+                                let agora_users_rl = agora_env.agora_to_rl_index_mapping(agora_users as u16);
+                                cores_absolute_latency[agora_cores_rl as usize][agora_users_rl as usize].push(ma_absolute_latency);
                             } else {
                                 let step_output = agora_env.step_emulated(action as u16);
                                 next_state = step_output.0;
@@ -725,14 +736,22 @@ async fn main() -> io::Result<()> {
                                 cont_epochs_count_in_target_reward = 1;
                             }
     
-                            // Q-value update using the Q-learning update rule
-                            let old_value = q_table[state as usize][action];
-                            let next_max = q_table[next_state as usize].iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-                            let new_value = old_value + alpha * (reward as f32 + gamma * next_max - old_value);
-                            q_table[state as usize][action] = new_value;
-                            println!("elements of state (after update): {}", state);
-                            for &row_element in &q_table[state as usize] {
-                                println!("{}", row_element);
+                            let users_after_action = agora_env.get_curr_users(next_state);
+                            let users_after_action_ag = agora_env.rl_to_agora_index_mapping(users_after_action as u16);
+
+                            if users_before_action_ag == users_after_action_ag {
+                                // Q-value update using the Q-learning update rule
+                                let old_value = q_table[state as usize][action];
+                                let next_max = q_table[next_state as usize].iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+                                let new_value = old_value + alpha * (reward as f32 + gamma * next_max - old_value);
+                                    q_table[state as usize][action] = new_value;
+                                println!("elements of state (after update): {}", state);
+                                for &row_element in &q_table[state as usize] {
+                                    println!("{}", row_element);
+                                }
+                            } else {
+                                println!("curr_users before action: {}; curr_users before action: {}", users_before_action_ag, users_after_action_ag);
+                                println!("curr_users changed during action. Ignoring Q table update for state: {}", state);
                             }
     
                             // Update state
