@@ -1242,6 +1242,18 @@ void Agora::InitializeCounters() {
       cfg->Frame().NumULSyms(),
       cfg->LdpcConfig(Direction::kUplink).NumBlocksInSymbol() *
           cfg->SpatialStreamsNum());
+  } else {
+    if (cfg->Frame().NumULSyms() > 0) {
+      decode_counters_.Init(
+        cfg->Frame().NumULSyms(),
+        cfg->NumCbPerSlot(Direction::kUplink) *
+        cfg->SpatialStreamsNum());
+    } else {
+      decode_counters_.Init(
+        0,
+        0);
+    }
+
   }
 
   tomac_counters_.Init(cfg->Frame().NumULSyms(), cfg->SpatialStreamsNum());
@@ -1249,10 +1261,17 @@ void Agora::InitializeCounters() {
   if (config_->Frame().NumDLSyms() > 0) {
     AGORA_LOG_TRACE("Agora: Initializing downlink buffers\n");
 
-    encode_counters_.Init(
+    if (cfg->SlotScheduling() == false) {
+      encode_counters_.Init(
+          config_->Frame().NumDlDataSyms(),
+          config_->LdpcConfig(Direction::kDownlink).NumBlocksInSymbol() *
+              config_->SpatialStreamsNum());
+    } else {
+      encode_counters_.Init(
         config_->Frame().NumDlDataSyms(),
-        config_->LdpcConfig(Direction::kDownlink).NumBlocksInSymbol() *
-            config_->SpatialStreamsNum());
+        config_->NumCbPerSlot(Direction::kDownlink) *
+        config_->SpatialStreamsNum());
+    }
     encode_cur_frame_for_symbol_ =
         std::vector<size_t>(config_->Frame().NumDLSyms(), SIZE_MAX);
     ifft_cur_frame_for_symbol_ =
@@ -1269,16 +1288,8 @@ void Agora::InitializeCounters() {
     mac_to_phy_counters_.Init(1, config_->SpatialStreamsNum());
   }
 
-  if (cfg->Frame().NumULSyms() > 0) {
-    decode_counters_.Init(
-      cfg->Frame().NumULSyms(),
-      cfg->NumCbPerSlot(Direction::kUplink) *
-      cfg->SpatialStreamsNum());
-  } else {
-    decode_counters_.Init(
-      0,
-      0);
-  }
+
+
 }
 
 void Agora::InitializeThreads() {
