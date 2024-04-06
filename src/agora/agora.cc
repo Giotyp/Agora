@@ -147,10 +147,16 @@ void Agora::ScheduleDownlinkProcessing(size_t frame_id) {
     }
   }
 
-  // Schedule data symbols encoding
-  for (size_t i = num_pilot_symbols; i < config_->Frame().NumDLSyms(); i++) {
-    ScheduleCodeblocks(EventType::kEncode, Direction::kDownlink, frame_id,
-                       config_->Frame().GetDLSymbol(i));
+  if (config_->SlotScheduling() == false) {
+    // Schedule data symbols encoding
+    for (size_t i = num_pilot_symbols; i < config_->Frame().NumDLSyms(); i++) {
+      ScheduleCodeblocks(EventType::kEncode, Direction::kDownlink, frame_id,
+                         config_->Frame().GetDLSymbol(i));
+    }
+  }
+
+  else {
+    ScheduleCodeblocks(EventType::kEncode, Direction::kDownlink, frame_id, config_->Frame().NumDLSyms());
   }
 }
 
@@ -1231,10 +1237,12 @@ void Agora::InitializeCounters() {
   demul_counters_.Init(cfg->Frame().NumULSyms(), cfg->DemulEventsPerSymbol());
 
   // \todo setting the first dim to NumUlDataSyms breaks the scheduler
+  if (cfg->SlotScheduling() == false) {
   decode_counters_.Init(
       cfg->Frame().NumULSyms(),
       cfg->LdpcConfig(Direction::kUplink).NumBlocksInSymbol() *
           cfg->SpatialStreamsNum());
+  }
 
   tomac_counters_.Init(cfg->Frame().NumULSyms(), cfg->SpatialStreamsNum());
 
@@ -1259,6 +1267,17 @@ void Agora::InitializeCounters() {
         config_->BsAntNum());
     // mac data is sent per frame, so we set max symbol to 1
     mac_to_phy_counters_.Init(1, config_->SpatialStreamsNum());
+  }
+
+  if (cfg->Frame().NumULSyms() > 0) {
+    decode_counters_.Init(
+      cfg->Frame().NumULSyms(),
+      cfg->NumCbPerSlot(Direction::kUplink) *
+      cfg->SpatialStreamsNum());
+  } else {
+    decode_counters_.Init(
+      0,
+      0);
   }
 }
 

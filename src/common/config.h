@@ -250,9 +250,16 @@ class Config {
   }
   inline size_t PacketLength() const { return this->packet_length_; }
 
+  inline size_t SlotScheduling() const {
+    return this->slot_scheduling_;
+  }
   inline float Scale() const { return this->scale_; }
   inline bool BigstationMode() const { return this->bigstation_mode_; }
   inline size_t DlPacketLength() const { return this->dl_packet_length_; }
+  inline size_t NumCbPerSlot(Direction dir) const {
+    return dir == Direction::kUplink ? this->ul_num_cb_per_slot_
+                                     : this->dl_num_cb_per_slot_;
+  }
   inline std::string Modulation(Direction dir) const {
     return dir == Direction::kUplink ? this->ul_modulation_
                                      : this->dl_modulation_;
@@ -793,6 +800,8 @@ class Config {
   // in block of ofdm_ca_num_ subcarriers.
   size_t ofdm_data_stop_;
 
+  size_t slot_scheduling_;
+
   size_t ofdm_pilot_spacing_;
 
   std::string ul_modulation_;  // Modulation order as a string, e.g., "16QAM"
@@ -1017,6 +1026,12 @@ class Config {
 
   // The total number of uncoded downlink data bytes in each OFDM symbol
   size_t dl_data_bytes_num_persymbol_;
+
+  // The total number of uplink code blocks allocated per slot
+  size_t ul_num_cb_per_slot_;
+
+  // The total number of downlink code blocks allocated per slot
+  size_t dl_num_cb_per_slot_;
 
   // The total number of downlink MAC payload data bytes in each Frame
   size_t dl_mac_data_bytes_num_perframe_;
