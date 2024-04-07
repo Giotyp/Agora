@@ -36,11 +36,10 @@ EventData DoDecode::Launch(size_t tag) {
   const size_t frame_id = gen_tag_t(tag).frame_id_;
   const size_t symbol_id = gen_tag_t(tag).symbol_id_;
   const size_t cb_id = gen_tag_t(tag).cb_id_;
-  const size_t cur_cb_id = (cb_id % ldpc_config.NumBlocksInSymbol());
   const size_t stream_id = (cb_id / ldpc_config.NumBlocksInSymbol());
-  const size_t ue_id = mac_sched_->ScheduledUeIndex(frame_id, 0, stream_id);
   const size_t frame_slot = (frame_id % kFrameWnd);
   const size_t num_bytes_per_cb = cfg_->NumBytesPerCb(Direction::kUplink);
+  size_t cur_cb_id, sched_ue_id, ue_id;
   /*RtAssert(symbol_id >=
                cfg_->Frame().GetULSymbol(cfg_->Frame().ClientUlPilotSymbols()),
            "Not a UL data symbol!");*/
@@ -78,16 +77,52 @@ EventData DoDecode::Launch(size_t tag) {
     ldpc_decoder_5gnr_response.numMsgBits = num_msg_bits;
     ldpc_decoder_5gnr_response.varNodes = resp_var_nodes_;
 
-    int8_t* llr_buffer_ptr =
-        demod_buffers_[frame_slot][data_symbol_idx_ul][stream_id] +
-        (cfg_->ModOrderBits(Direction::kUplink) *
-         (ldpc_config.NumCbCodewLen() * cur_cb_id));
+    uint8_t* decoded_buffer_ptr;
+    int8_t* llr_buffer_cb_ptr = nullptr;
+    
+    if (cfg_->SlotScheduling() == false) {
+      cur_cb_id = (cb_id % ldpc_config.NumBlocksInSymbol());
+      sched_ue_id = (cb_id / ldpc_config.NumBlocksInSymbol());
+      ue_id = mac_sched_->ScheduledUeIndex(frame_id, 0, sched_ue_id);
 
-    uint8_t* decoded_buffer_ptr =
-        (uint8_t*)decoded_buffers_[frame_slot][data_symbol_idx_ul][ue_id] +
-        (cur_cb_id * Roundup<64>(num_bytes_per_cb));
+      int8_t* llr_buffer_ptr =
+          demod_buffers_[frame_slot][data_symbol_idx_ul][stream_id] +
+          (cfg_->ModOrderBits(Direction::kUplink) *
+          (ldpc_config.NumCbCodewLen() * cur_cb_id));
 
-    ldpc_decoder_5gnr_request.varNodes = llr_buffer_ptr;
+      ldpc_decoder_5gnr_request.varNodes = llr_buffer_ptr;
+
+      decoded_buffer_ptr =
+          (uint8_t*)decoded_buffers_[frame_slot][data_symbol_idx_ul][ue_id] +
+          (cur_cb_id * Roundup<64>(num_bytes_per_cb));
+    }
+
+    else {
+      size_t NumUlScPerCB = this->cfg_->NumPrbPerCb(Direction::kUplink) * kNumScPerPRB;
+      cur_cb_id = cb_id % cfg_->NumCbPerSlot(Direction::kUplink);
+      sched_ue_id = cb_id / this->cfg_->NumCbPerSlot(Direction::kUplink);
+      ue_id = mac_sched_->ScheduledUeIndex(frame_id, 0, sched_ue_id);
+
+      std::vector<int8_t> llr_buffer_cb(NumUlScPerCB *
+                                        cfg_->ModOrderBits(Direction::kUplink) *
+                                        cfg_->Frame().NumUlDataSyms());
+      llr_buffer_cb_ptr = llr_buffer_cb.data();
+
+      // std::printf("DEBUG: LLR data: frame_slot: %zu, symbol_id: %zu, symbol_idx_ul: %zu, ue_id: %zu, cur_cb_id: %zu, size: %zu, NumCbCodewLen: %d, num_bytes_per_cb: %zu\n", frame_slot, symbol_id, symbol_idx_ul, ue_id, cur_cb_id, llr_buffer_cb.size(), ldpc_config.NumCbCodewLen(), num_bytes_per_cb);
+      for (size_t symb = 0; symb < 12; symb++) {
+        std::memcpy(llr_buffer_cb_ptr,
+                    demod_buffers_[frame_slot][symb][ue_id] + (cur_cb_id * NumUlScPerCB * cfg_->ModOrderBits(Direction::kUplink) * sizeof(int8_t)),
+                    NumUlScPerCB * cfg_->ModOrderBits(Direction::kUplink) * sizeof(int8_t));
+        llr_buffer_cb_ptr += NumUlScPerCB * cfg_->ModOrderBits(Direction::kUplink) * sizeof(int8_t);
+        // std::printf("DEBUG: SF: symb: %zu, LLR pointer: %zu\n", symb, reinterpret_cast<intptr_t> (demod_buffers_[frame_slot][symb][ue_id] + (cur_cb_id * NumUlScPerCB * cfg_->ModOrderBits(Direction::kUplink) * sizeof(int8_t))));
+      }
+      llr_buffer_cb_ptr = llr_buffer_cb.data();
+      ldpc_decoder_5gnr_request.varNodes = llr_buffer_cb_ptr;
+
+      decoded_buffer_ptr =
+        (uint8_t *) decoded_buffers_[frame_slot][cur_cb_id][ue_id];
+    }
+
     ldpc_decoder_5gnr_response.compactedMessageBytes = decoded_buffer_ptr;
 
     size_t start_tsc1 = GetTime::WorkerRdtsc();
@@ -102,22 +137,6 @@ EventData DoDecode::Launch(size_t tag) {
 
     size_t start_tsc2 = GetTime::WorkerRdtsc();
     duration_stat_->task_duration_[2] += start_tsc2 - start_tsc1;
-
-    if (kPrintLLRData) {
-      std::printf("LLR data, symbol_offset: %zu\n", symbol_offset);
-      for (size_t i = 0; i < ldpc_config.NumCbCodewLen(); i++) {
-        std::printf("%d ", *(llr_buffer_ptr + i));
-      }
-      std::printf("\n");
-    }
-
-    if (kPrintDecodedData) {
-      std::printf("Decoded data\n");
-      for (size_t i = 0; i < (ldpc_config.NumCbLen() >> 3); i++) {
-        std::printf("%u ", *(decoded_buffer_ptr + i));
-      }
-      std::printf("\n");
-    }
 
     if ((kEnableMac == false) && (kPrintPhyStats == true)) {
       phy_stats_->UpdateDecodedBits(ue_id, symbol_offset, frame_slot,

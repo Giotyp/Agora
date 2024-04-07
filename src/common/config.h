@@ -253,6 +253,11 @@ class Config {
   inline size_t SlotScheduling() const {
     return this->slot_scheduling_;
   }
+
+  inline size_t NumPrbPerCb(Direction dir) const {
+    return dir == Direction::kUplink ? this->ul_num_prb_per_cb_
+                                     : this->dl_num_prb_per_cb_;
+  }
   inline float Scale() const { return this->scale_; }
   inline bool BigstationMode() const { return this->bigstation_mode_; }
   inline size_t DlPacketLength() const { return this->dl_packet_length_; }
@@ -1026,6 +1031,12 @@ class Config {
 
   // The total number of uncoded downlink data bytes in each OFDM symbol
   size_t dl_data_bytes_num_persymbol_;
+
+    // The total number of uplink PRBs allocated per code bloack in a subframe
+  size_t ul_num_prb_per_cb_;
+
+  // The total number of downlink PRBs allocated per code bloack in a subframe
+  size_t dl_num_prb_per_cb_;
 
   // The total number of uplink code blocks allocated per slot
   size_t ul_num_cb_per_slot_;

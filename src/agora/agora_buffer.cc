@@ -103,10 +103,28 @@ void AgoraBuffer::AllocateTables() {
         calib_buffer_[frame][i] = complex_init;
       }
     }
-    dl_mod_bits_buffer_.Calloc(
-        task_buffer_data_symbol_num,
-        Roundup<64>(config_->GetOFDMDataNum()) * config_->UeAntNum(),
+
+    if (config_->SlotScheduling() == false) {
+      dl_mod_bits_buffer_.Calloc(
+          task_buffer_data_symbol_num,
+          Roundup<64>(config_->GetOFDMDataNum()) * config_->UeAntNum(),
+          Agora_memory::Alignment_t::kAlign64);
+    }
+
+    else {
+      // dl_mod_bits_buffer_.Calloc(
+      //   task_buffer_symbol_num,
+      //   Roundup<64>(config_->GetOFDMDataNum()) * config_->SpatialStreamsNum(),
+      //   Agora_memory::Alignment_t::kAlign64);
+
+      size_t NumDlScPerSymbPerCb = this->config_->NumPrbPerCb(Direction::kDownlink) * kNumScPerPRB;
+      size_t NumDlScPerCbPerSlot = NumDlScPerSymbPerCb * config_->Frame().NumDlDataSyms();
+      dl_mod_bits_buffer_.Calloc(
+        kFrameWnd,
+        Roundup<64>(NumDlScPerCbPerSlot) *
+        config_->NumCbPerSlot(Direction::kDownlink) * config_->SpatialStreamsNum(),
         Agora_memory::Alignment_t::kAlign64);
+    }
   }
 }
 

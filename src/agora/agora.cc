@@ -1435,6 +1435,7 @@ void Agora::SaveDecodeDataToFile(int frame_id) {
   if (fp == nullptr) {
     AGORA_LOG_ERROR("SaveDecodeDataToFile error creating file pointer\n");
   } else {
+    if (cfg->SlotScheduling() == false) {
     for (size_t i = 0; i < cfg->Frame().NumULSyms(); i++) {
       for (size_t j = 0; j < cfg->SpatialStreamsNum(); j++) {
         const int8_t* ptr =
@@ -1446,6 +1447,22 @@ void Agora::SaveDecodeDataToFile(int frame_id) {
         }
       }
     }  // end for
+    } else {
+      if (cfg->Frame().NumULSyms() > 0) {
+        for (size_t i = 0; i < cfg->UeAntNum(); i++) {
+          for (size_t j = 0; j < cfg->NumCbPerSlot(Direction::kUplink); j++) {
+            const int8_t* ptr =
+              agora_memory_->GetDecod()[(frame_id % kFrameWnd)][j][i];
+            const auto write_status =
+              std::fwrite(ptr, sizeof(uint8_t), num_decoded_bytes, fp);
+            if (write_status != num_decoded_bytes) {
+              AGORA_LOG_ERROR("SaveDecodeDataToFile error while writting file\n");
+            }
+          }
+        }  // end for
+      }
+    }
+    
     const auto close_status = std::fclose(fp);
     if (close_status != 0) {
       AGORA_LOG_ERROR("SaveDecodeDataToFile error while closing file\n");

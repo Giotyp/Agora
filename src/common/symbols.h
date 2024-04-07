@@ -318,6 +318,9 @@ static constexpr size_t kMaxLoggingEventsMaster = 100000;
 // Maximum number of events allowed per thread per symbol in a logging frame
 static constexpr size_t kMaxLoggingEventsWorker = 1024;
 
+// Number of subcarriers in a PRB
+static constexpr size_t kNumScPerPRB = 12;
+
 // Maximum number of symbols per frame allowed by Agora
 static constexpr size_t kMaxSymbols = 140;
 
