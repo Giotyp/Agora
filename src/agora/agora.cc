@@ -761,16 +761,34 @@ void Agora::Start() {
               this->encode_cur_frame_for_symbol_.at(
                   cfg->Frame().GetDLSymbolIdx(symbol_id)) = frame_id;
               // If precoder of the current frame exists
-              if (beam_last_frame_ == frame_id) {
-                ScheduleSubcarriers(EventType::kPrecode, frame_id, symbol_id);
-              }
-              stats_->PrintPerSymbolDone(
-                  PrintType::kEncode, frame_id, symbol_id,
-                  encode_counters_.GetSymbolCount(frame_id) + 1);
+              
+              if (cfg->SlotScheduling() == false) {
+                if (beam_last_frame_ == frame_id) {
+                  ScheduleSubcarriers(EventType::kPrecode, frame_id, symbol_id);
+                }
+                stats_->PrintPerSymbolDone(
+                    PrintType::kEncode, frame_id, symbol_id,
+                    encode_counters_.GetSymbolCount(frame_id) + 1);
 
-              const bool last_encode_symbol =
-                  this->encode_counters_.CompleteSymbol(frame_id);
-              if (last_encode_symbol == true) {
+                const bool last_encode_symbol =
+                    this->encode_counters_.CompleteSymbol(frame_id);
+                if (last_encode_symbol == true) {
+                  this->encode_counters_.Reset(frame_id);
+                  this->stats_->MasterSetTsc(TsType::kEncodeDone, frame_id);
+                  stats_->PrintPerFrameDone(PrintType::kEncode, frame_id);
+                }
+              }
+
+              else {
+                // AGORA_LOG_INFO("DEBUG: kEncode: frame_id: %zu, symbol_id: %zu, last_encode_task: %zu, beam_last_frame_: %zu\n", frame_id, symbol_id, last_encode_task, beam_last_frame_);
+                // If precoder of the current frame exists
+                if (beam_last_frame_ == frame_id) {
+                  size_t num_pilot_symbols = config_->Frame().ClientDlPilotSymbols();
+                  for (size_t i = num_pilot_symbols; i < config_->Frame().NumDLSyms(); i++) {
+                    ScheduleSubcarriers(EventType::kPrecode, frame_id, config_->Frame().GetDLSymbol(i));
+                  }
+                }
+
                 this->encode_counters_.Reset(frame_id);
                 this->stats_->MasterSetTsc(TsType::kEncodeDone, frame_id);
                 stats_->PrintPerFrameDone(PrintType::kEncode, frame_id);
