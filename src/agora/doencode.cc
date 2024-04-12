@@ -58,8 +58,15 @@ EventData DoEncode::Launch(size_t tag) {
   const size_t frame_id = gen_tag_t(tag).frame_id_;
   const size_t symbol_id = gen_tag_t(tag).symbol_id_;
   const size_t cb_id = gen_tag_t(tag).cb_id_;
-  const size_t cur_cb_id = cb_id % ldpc_config.NumBlocksInSymbol();
-  const size_t sched_ue_id = cb_id / ldpc_config.NumBlocksInSymbol();
+  size_t cur_cb_id, sched_ue_id;
+
+  if (cfg_->SlotScheduling() == false) {
+    cur_cb_id = cb_id % ldpc_config.NumBlocksInSymbol();
+    sched_ue_id = cb_id / ldpc_config.NumBlocksInSymbol();
+  } else {
+    cur_cb_id = cb_id % this->cfg_->NumCbPerSlot(dir_);
+    sched_ue_id = cb_id / this->cfg_->NumCbPerSlot(dir_);
+  }
 
   size_t start_tsc = GetTime::WorkerRdtsc();
 
