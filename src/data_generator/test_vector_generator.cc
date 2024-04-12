@@ -70,8 +70,8 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
   }
   srand(time(nullptr));
   std::unique_ptr<DoCRC> crc_obj = std::make_unique<DoCRC>();
-  const size_t ul_cb_bytes = cfg->NumBytesPerCb(Direction::kUplink);
-  LDPCconfig ul_ldpc_config = cfg->LdpcConfig(Direction::kUplink);
+  const size_t ul_cb_bytes = cfg->MacParams().NumBytesPerCb(Direction::kUplink);
+  LDPCconfig ul_ldpc_config = cfg->MacParams().LdpcConfig(Direction::kUplink);
 
   // Generating an array of cfg->FramesToTest() * cfg->UeAntNum() elements
   // containing a bitmap of scheduled UEs across frames
@@ -154,7 +154,8 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
   // Step 1: Generate the information buffers (MAC Packets) and LDPC-encoded
   // buffers for uplink
   const size_t num_ul_pilots = cfg->Frame().ClientUlPilotSymbols();
-  const size_t num_ul_mac_bytes = cfg->MacBytesNumPerframe(Direction::kUplink);
+  const size_t num_ul_mac_bytes =
+      cfg->MacParams().MacBytesNumPerframe(Direction::kUplink);
   std::vector<std::vector<complex_float>> pre_ifft_data_syms;
   if (num_ul_mac_bytes > 0) {
     std::vector<std::vector<int8_t>> ul_mac_info(cfg->UeAntNum());
@@ -163,18 +164,21 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
     for (size_t ue_id = 0; ue_id < cfg->UeAntNum(); ue_id++) {
       ul_mac_info.at(ue_id).resize(num_ul_mac_bytes);
       for (size_t pkt_id = 0;
-           pkt_id < cfg->MacPacketsPerframe(Direction::kUplink); pkt_id++) {
-        size_t pkt_offset = pkt_id * cfg->MacPacketLength(Direction::kUplink);
+           pkt_id < cfg->MacParams().MacPacketsPerframe(Direction::kUplink);
+           pkt_id++) {
+        size_t pkt_offset =
+            pkt_id * cfg->MacParams().MacPacketLength(Direction::kUplink);
         auto* pkt = reinterpret_cast<MacPacketPacked*>(
             &ul_mac_info.at(ue_id).at(pkt_offset));
 
         pkt->Set(0, cfg->Frame().GetULSymbol(pkt_id + num_ul_pilots), ue_id,
-                 cfg->MacPayloadMaxLength(Direction::kUplink));
+                 cfg->MacParams().MacPayloadMaxLength(Direction::kUplink));
         data_generator->GenMacData(pkt, ue_id);
-        pkt->Crc((uint16_t)(crc_obj->CalculateCrc24(
-                                pkt->Data(),
-                                cfg->MacPayloadMaxLength(Direction::kUplink)) &
-                            0xFFFF));
+        pkt->Crc(
+            (uint16_t)(crc_obj->CalculateCrc24(
+                           pkt->Data(), cfg->MacParams().MacPayloadMaxLength(
+                                            Direction::kUplink)) &
+                       0xFFFF));
       }
     }
 
@@ -252,16 +256,17 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
         AdaptBitsForMod(
             reinterpret_cast<const uint8_t*>(ul_encoded_codewords.at(n).data()),
             odfm_symbol.data(),
-            cfg->LdpcConfig(Direction::kUplink).NumEncodedBytes(),
-            cfg->ModOrderBits(Direction::kUplink));
+            cfg->MacParams().LdpcConfig(Direction::kUplink).NumEncodedBytes(),
+            cfg->MacParams().ModOrderBits(Direction::kUplink));
         for (size_t f = 0; f < kOutputFrameNum; f++) {
           ul_ofdm_data.at(cl_sdr).at(f).at(ul_slot).at(cl_sdr_ch) = odfm_symbol;
         }
       }
       for (size_t i = 0; i < cfg->UeNum(); i++) {
         const std::string filename_input =
-            directory + kUlModDataPrefix + cfg->Modulation(Direction::kUplink) +
-            "_" + std::to_string(cfg->OfdmDataNum()) + "_" +
+            directory + kUlModDataPrefix +
+            cfg->MacParams().Modulation(Direction::kUplink) + "_" +
+            std::to_string(cfg->OfdmDataNum()) + "_" +
             std::to_string(cfg->OfdmCaNum()) + "_" +
             std::to_string(kOfdmSymbolPerSlot) + "_" +
             std::to_string(cfg->Frame().NumULSyms()) + "_" +
@@ -303,9 +308,10 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
       auto ofdm_symbol = DataGenerator::GetModulation(
           &ul_encoded_codewords.at(i).at(0),
           &ul_modulated_codewords.at(i).at(0),
-          cfg->ModTable(Direction::kUplink),
-          cfg->LdpcConfig(Direction::kUplink).NumCbCodewLen(),
-          cfg->OfdmDataNum(), cfg->ModOrderBits(Direction::kUplink));
+          cfg->MacParams().ModTable(Direction::kUplink),
+          cfg->MacParams().LdpcConfig(Direction::kUplink).NumCbCodewLen(),
+          cfg->OfdmDataNum(),
+          cfg->MacParams().ModOrderBits(Direction::kUplink));
       ul_modulated_symbols.at(i) = DataGenerator::MapOFDMSymbol(
           cfg, ofdm_symbol, nullptr, SymbolType::kUL);
     }
@@ -515,10 +521,12 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
   /* ------------------------------------------------
    * Generate data for downlink test
    * ------------------------------------------------ */
-  const LDPCconfig dl_ldpc_config = cfg->LdpcConfig(Direction::kDownlink);
-  const size_t dl_cb_bytes = cfg->NumBytesPerCb(Direction::kDownlink);
+  const LDPCconfig dl_ldpc_config =
+      cfg->MacParams().LdpcConfig(Direction::kDownlink);
+  const size_t dl_cb_bytes =
+      cfg->MacParams().NumBytesPerCb(Direction::kDownlink);
   const size_t num_dl_mac_bytes =
-      cfg->MacBytesNumPerframe(Direction::kDownlink);
+      cfg->MacParams().MacBytesNumPerframe(Direction::kDownlink);
   const size_t num_dl_pilots = cfg->Frame().ClientDlPilotSymbols();
   if (num_dl_mac_bytes > 0) {
     std::vector<std::vector<int8_t>> dl_mac_info(cfg->UeAntNum());
@@ -527,18 +535,21 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
     for (size_t ue_id = 0; ue_id < cfg->UeAntNum(); ue_id++) {
       dl_mac_info[ue_id].resize(num_dl_mac_bytes);
       for (size_t pkt_id = 0;
-           pkt_id < cfg->MacPacketsPerframe(Direction::kDownlink); pkt_id++) {
-        size_t pkt_offset = pkt_id * cfg->MacPacketLength(Direction::kDownlink);
+           pkt_id < cfg->MacParams().MacPacketsPerframe(Direction::kDownlink);
+           pkt_id++) {
+        size_t pkt_offset =
+            pkt_id * cfg->MacParams().MacPacketLength(Direction::kDownlink);
         auto* pkt = reinterpret_cast<MacPacketPacked*>(
             &dl_mac_info.at(ue_id).at(pkt_offset));
 
         pkt->Set(0, cfg->Frame().GetDLSymbol(pkt_id + num_dl_pilots), ue_id,
-                 cfg->MacPayloadMaxLength(Direction::kDownlink));
+                 cfg->MacParams().MacPayloadMaxLength(Direction::kDownlink));
         data_generator->GenMacData(pkt, ue_id);
-        pkt->Crc((uint16_t)(crc_obj->CalculateCrc24(pkt->Data(),
-                                                    cfg->MacPayloadMaxLength(
-                                                        Direction::kDownlink)) &
-                            0xFFFF));
+        pkt->Crc(
+            (uint16_t)(crc_obj->CalculateCrc24(
+                           pkt->Data(), cfg->MacParams().MacPayloadMaxLength(
+                                            Direction::kDownlink)) &
+                       0xFFFF));
       }
     }
 
@@ -602,9 +613,10 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
       dl_modulated_codewords.at(i).resize(cfg->GetOFDMDataNum());
       auto ofdm_symbol = DataGenerator::GetModulation(
           &dl_encoded_codewords.at(i)[0], &dl_modulated_codewords.at(i)[0],
-          cfg->ModTable(Direction::kDownlink),
-          cfg->LdpcConfig(Direction::kDownlink).NumCbCodewLen(),
-          cfg->GetOFDMDataNum(), cfg->ModOrderBits(Direction::kDownlink));
+          cfg->MacParams().ModTable(Direction::kDownlink),
+          cfg->MacParams().LdpcConfig(Direction::kDownlink).NumCbCodewLen(),
+          cfg->GetOFDMDataNum(),
+          cfg->MacParams().ModOrderBits(Direction::kDownlink));
       dl_modulated_symbols.at(i) = DataGenerator::MapOFDMSymbol(
           cfg, ofdm_symbol, ue_specific_pilot[ue_id], SymbolType::kDL);
     }

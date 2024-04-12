@@ -49,8 +49,11 @@ PhyUe::PhyUe(Config* config)
                     kMaxModType * Roundup<64>(config->GetOFDMDataNum())),
       decoded_buffer_(
           kFrameWnd, config->Frame().NumDlDataSyms(), config->UeAntNum(),
-          config->LdpcConfig(Direction::kDownlink).NumBlocksInSymbol() *
-              Roundup<64>(config->NumBytesPerCb(Direction::kDownlink))) {
+          config->MacParams()
+                  .LdpcConfig(Direction::kDownlink)
+                  .NumBlocksInSymbol() *
+              Roundup<64>(
+                  config->MacParams().NumBytesPerCb(Direction::kDownlink))) {
   srand(time(nullptr));
   // TODO take into account the UeAntOffset to allow for multiple PhyUe
   // instances
@@ -860,7 +863,7 @@ void PhyUe::InitializeVarsFromCfg() {
 void PhyUe::InitializeUplinkBuffers() {
   // initialize ul data buffer
   ul_bits_buffer_size_ =
-      kFrameWnd * config_->MacBytesNumPerframe(Direction::kUplink);
+      kFrameWnd * config_->MacParams().MacBytesNumPerframe(Direction::kUplink);
   ul_bits_buffer_.Malloc(config_->UeAntNum(), ul_bits_buffer_size_,
                          Agora_memory::Alignment_t::kAlign64);
   ul_bits_buffer_status_.Calloc(config_->UeAntNum(), kFrameWnd,

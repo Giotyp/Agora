@@ -252,7 +252,7 @@ void Agora::ScheduleCodeblocks(EventType event_type, Direction dir,
   auto base_tag = gen_tag_t::FrmSymCb(frame_id, symbol_idx, 0);
   auto ue_list = mac_sched_->ScheduledUeList(frame_id, 0);
   const size_t num_tasks =
-      ue_list.n_elem * config_->LdpcConfig(dir).NumBlocksInSymbol();
+      ue_list.n_elem * config_->MacParams().LdpcConfig(dir).NumBlocksInSymbol();
   size_t num_blocks = num_tasks / config_->EncodeBlockSize();
   const size_t num_remainder = num_tasks % config_->EncodeBlockSize();
   if (num_remainder > 0) {
@@ -1039,9 +1039,9 @@ void Agora::HandleEventFft(size_t tag) {
 }
 
 void Agora::UpdateRanConfig(RanConfig rc) {
-  nlohmann::json msc_params = config_->MCSParams(Direction::kUplink);
-  msc_params["mcs_index"] = rc.mcs_index_;
-  config_->UpdateUlMCS(msc_params);
+  auto ul_mcs_params = mac_sched_->Params().GetMcsJson(Direction::kUplink);
+  ul_mcs_params["mcs_index"] = rc.mcs_index_;
+  mac_sched_->Params().UpdateUlMacParams(ul_mcs_params);
 }
 
 void Agora::UpdateRxCounters(size_t frame_id, size_t symbol_id) {
@@ -1169,7 +1169,7 @@ void Agora::InitializeCounters() {
   // \todo setting the first dim to NumUlDataSyms breaks the scheduler
   decode_counters_.Init(
       cfg->Frame().NumULSyms(),
-      cfg->LdpcConfig(Direction::kUplink).NumBlocksInSymbol() *
+      cfg->MacParams().LdpcConfig(Direction::kUplink).NumBlocksInSymbol() *
           cfg->SpatialStreamsNum());
 
   tomac_counters_.Init(cfg->Frame().NumULSyms(), cfg->SpatialStreamsNum());
@@ -1177,10 +1177,11 @@ void Agora::InitializeCounters() {
   if (config_->Frame().NumDLSyms() > 0) {
     AGORA_LOG_TRACE("Agora: Initializing downlink buffers\n");
 
-    encode_counters_.Init(
-        config_->Frame().NumDlDataSyms(),
-        config_->LdpcConfig(Direction::kDownlink).NumBlocksInSymbol() *
-            config_->SpatialStreamsNum());
+    encode_counters_.Init(config_->Frame().NumDlDataSyms(),
+                          config_->MacParams()
+                                  .LdpcConfig(Direction::kDownlink)
+                                  .NumBlocksInSymbol() *
+                              config_->SpatialStreamsNum());
     encode_cur_frame_for_symbol_ =
         std::vector<size_t>(config_->Frame().NumDLSyms(), SIZE_MAX);
     ifft_cur_frame_for_symbol_ =
@@ -1276,7 +1277,8 @@ void Agora::InitializeThreads() {
 
 void Agora::SaveDecodeDataToFile(int frame_id) {
   const auto& cfg = config_;
-  const size_t num_decoded_bytes = cfg->MacPacketLength(Direction::kUplink);
+  const size_t num_decoded_bytes =
+      cfg->MacParams().MacPacketLength(Direction::kUplink);
   auto ue_list = mac_sched_->ScheduledUeList(frame_id, 0 /*sc_id*/);
   AGORA_LOG_INFO("Saving decode data to %s\n", kDecodeDataFilename.c_str());
   auto* fp = std::fopen(kDecodeDataFilename.c_str(), "wb");

@@ -10,7 +10,8 @@
 
 static constexpr size_t kCsiSubcarrierIdx = 0;
 
-MacScheduler::MacScheduler(Config* const cfg) : cfg_(cfg) {
+MacScheduler::MacScheduler(Config* const cfg)
+    : cfg_(cfg), params_(cfg->MacParams()) {
   scheduler_model_ = std::move(SchedulerModel::CreateSchedulerModel(cfg_));
   const size_t num_groups = scheduler_model_->NumGroups();
 
@@ -20,8 +21,8 @@ MacScheduler::MacScheduler(Config* const cfg) : cfg_(cfg) {
                         Agora_memory::Alignment_t::kAlign64);
   for (size_t gp = 0u; gp < num_groups; gp++) {
     for (size_t ue = 0; ue < cfg_->UeAntNum(); ue++) {
-      ul_mcs_buffer_[gp][ue] = cfg_->McsIndex(Direction::kUplink);
-      dl_mcs_buffer_[gp][ue] = cfg_->McsIndex(Direction::kDownlink);
+      ul_mcs_buffer_[gp][ue] = params_.McsIndex(Direction::kUplink);
+      dl_mcs_buffer_[gp][ue] = params_.McsIndex(Direction::kDownlink);
     }
   }
 }

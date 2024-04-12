@@ -79,8 +79,8 @@ static unsigned int CheckCorrectnessUl(Config const* const cfg,
                      Agora_memory::Alignment_t::kAlign64);
 
   size_t num_bytes_per_ue =
-      (cfg->LdpcConfig(Direction::kUplink).NumCbLen() + 7) >>
-      3 * cfg->LdpcConfig(Direction::kUplink).NumBlocksInSymbol();
+      (cfg->MacParams().LdpcConfig(Direction::kUplink).NumCbLen() + 7) >>
+      3 * cfg->MacParams().LdpcConfig(Direction::kUplink).NumBlocksInSymbol();
   ReadFromFileUl(raw_data_filename, raw_data, ue_num, num_bytes_per_ue, cfg);
   ReadFromFileUl(kDecodedFilename, output_data, spatial_streams_num,
                  num_bytes_per_ue, cfg);

@@ -16,9 +16,10 @@ AgoraBuffer::AgoraBuffer(Config* const cfg)
                       cfg->UeAntNum() * cfg->BsAntNum()),
       demod_buffer_(kFrameWnd, cfg->Frame().NumUlDataSyms(), cfg->UeAntNum(),
                     kMaxModType * cfg->OfdmDataNum()),
-      decoded_buffer_(kFrameWnd, cfg->Frame().NumUlDataSyms(), cfg->UeAntNum(),
-                      cfg->LdpcConfig(Direction::kUplink).NumBlocksInSymbol() *
-                          Roundup<64>(cfg->NumBytesPerCb(Direction::kUplink))) {
+      decoded_buffer_(
+          kFrameWnd, cfg->Frame().NumUlDataSyms(), cfg->UeAntNum(),
+          cfg->MacParams().LdpcConfig(Direction::kUplink).NumBlocksInSymbol() *
+              Roundup<64>(cfg->MacParams().NumBytesPerCb(Direction::kUplink))) {
   AllocateTables();
 }
 
@@ -66,7 +67,8 @@ void AgoraBuffer::AllocateTables() {
         kFrameWnd * config_->Frame().NumDlDataSyms();
 
     size_t dl_bits_buffer_size =
-        kFrameWnd * config_->MacBytesNumPerframe(Direction::kDownlink);
+        kFrameWnd *
+        config_->MacParams().MacBytesNumPerframe(Direction::kDownlink);
     dl_bits_buffer_.Calloc(config_->UeAntNum(), dl_bits_buffer_size,
                            Agora_memory::Alignment_t::kAlign64);
     dl_bits_buffer_status_.Calloc(config_->UeAntNum(), kFrameWnd,

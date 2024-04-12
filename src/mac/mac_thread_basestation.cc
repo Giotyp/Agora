@@ -54,11 +54,11 @@ MacThreadBaseStation::MacThreadBaseStation(
 
   // The frame data will hold the data coming from the Phy (Received)
   for (auto& v : server_.frame_data_) {
-    v.resize(cfg_->MacDataBytesNumPerframe(Direction::kUplink));
+    v.resize(cfg_->MacParams().MacDataBytesNumPerframe(Direction::kUplink));
   }
 
   const size_t udp_pkt_len =
-      cfg_->MacDataBytesNumPerframe(Direction::kDownlink);
+      cfg_->MacParams().MacDataBytesNumPerframe(Direction::kDownlink);
   udp_pkt_buf_.resize(udp_pkt_len + kUdpRxBufferPadding);
 
   if (kEnableMac == true) {
@@ -73,7 +73,8 @@ MacThreadBaseStation::MacThreadBaseStation(
         std::make_unique<UDPComm>(cfg_->BsServerAddr(), udp_server_port,
                                   udp_pkt_len * kMaxUEs * kMaxPktsPerUE, 0);
   } else {
-    num_dl_mac_bytes_ = cfg->MacBytesNumPerframe(Direction::kDownlink);
+    num_dl_mac_bytes_ =
+        cfg->MacParams().MacBytesNumPerframe(Direction::kDownlink);
     if (num_dl_mac_bytes_ > 0) {
       // Downlink LDPC input bits
       dl_mac_bytes_.Calloc(cfg_->UeAntNum(), num_dl_mac_bytes_,
@@ -93,7 +94,8 @@ MacThreadBaseStation::MacThreadBaseStation(
         seek_offset += num_dl_mac_bytes_ * sizeof(int8_t);
       }
     }
-    num_ul_mac_bytes_ = cfg->MacBytesNumPerframe(Direction::kUplink);
+    num_ul_mac_bytes_ =
+        cfg->MacParams().MacBytesNumPerframe(Direction::kUplink);
     if (num_ul_mac_bytes_ > 0) {
       // Downlink LDPC input bits
       ul_mac_bytes_.Calloc(cfg_->UeAntNum(), num_ul_mac_bytes_,
@@ -159,7 +161,7 @@ void MacThreadBaseStation::ProcessSnrReportFromPhy(EventData event) {
 void MacThreadBaseStation::SendRanConfigUpdate(EventData /*event*/) {
   RanConfig rc;
   rc.n_antennas_ = 0;  // TODO [arjun]: What's the correct value here?
-  rc.mcs_index_ = cfg_->McsIndex(Direction::kUplink);
+  rc.mcs_index_ = cfg_->MacParams().McsIndex(Direction::kUplink);
   rc.frame_id_ = scheduler_next_frame_id_;
   // TODO: change n_antennas to a desired value
   // cfg_->BsAntNum() is added to fix compiler warning
@@ -194,7 +196,8 @@ void MacThreadBaseStation::ProcessCodeblocksFromPhy(EventData event) {
       if (kPrintPhyStats == true) {
         const size_t symbol_offset =
             cfg_->GetTotalDataSymbolIdxUl(frame_id, data_symbol_idx_ul);
-        const size_t mac_packet_len = cfg_->MacPacketLength(Direction::kUplink);
+        const size_t mac_packet_len =
+            cfg_->MacParams().MacPacketLength(Direction::kUplink);
         phy_stats_->UpdateDecodedBits(ue_id, symbol_offset, frame_slot,
                                       mac_packet_len * 8);
         phy_stats_->IncrementDecodedBlocks(ue_id, symbol_offset, frame_slot);
@@ -217,17 +220,17 @@ void MacThreadBaseStation::ProcessCodeblocksFromPhy(EventData event) {
       const auto* pkt = reinterpret_cast<const MacPacketPacked*>(src_data);
       // Destination only contains "payload"
       const size_t mac_data_bytes_per_frame =
-          cfg_->MacDataBytesNumPerframe(Direction::kUplink);
+          cfg_->MacParams().MacDataBytesNumPerframe(Direction::kUplink);
 
       const size_t data_symbol_index_start =
           cfg_->Frame().GetULSymbol(num_pilot_symbols);
 
       const size_t data_symbol_index_end = cfg_->Frame().GetULSymbolLast();
       const size_t num_mac_packets_per_frame =
-          cfg_->MacPacketsPerframe(Direction::kUplink);
+          cfg_->MacParams().MacPacketsPerframe(Direction::kUplink);
 
       const size_t mac_payload_length =
-          cfg_->MacPayloadMaxLength(Direction::kUplink);
+          cfg_->MacParams().MacPayloadMaxLength(Direction::kUplink);
 
       // TODO: enable ARQ and ensure reliable data goes to app
       const size_t frame_data_offset = data_symbol_idx_ul * mac_payload_length;
@@ -349,7 +352,7 @@ void MacThreadBaseStation::SendControlInformation() {
   // send RAN control information UE
   RBIndicator ri;
   ri.ue_id_ = next_radio_id_;
-  ri.mcs_index_ = cfg_->McsIndex(Direction::kUplink);
+  ri.mcs_index_ = cfg_->MacParams().McsIndex(Direction::kUplink);
   udp_comm_->Send(cfg_->UeServerAddr(), kMacBaseClientPort + ri.ue_id_,
                   reinterpret_cast<std::byte*>(&ri), sizeof(RBIndicator));
 
@@ -359,15 +362,16 @@ void MacThreadBaseStation::SendControlInformation() {
 
 void MacThreadBaseStation::ProcessUdpPacketsFromApps() {
   const size_t max_data_bytes_per_frame =
-      cfg_->MacDataBytesNumPerframe(Direction::kDownlink);
+      cfg_->MacParams().MacDataBytesNumPerframe(Direction::kDownlink);
 
   const size_t num_mac_packets_per_frame =
-      cfg_->MacPacketsPerframe(Direction::kDownlink);
+      cfg_->MacParams().MacPacketsPerframe(Direction::kDownlink);
 
-  const size_t mac_packet_length = cfg_->MacPacketLength(Direction::kDownlink);
+  const size_t mac_packet_length =
+      cfg_->MacParams().MacPacketLength(Direction::kDownlink);
 
   const size_t num_mac_bytes_per_frame =
-      cfg_->MacBytesNumPerframe(Direction::kDownlink);
+      cfg_->MacParams().MacBytesNumPerframe(Direction::kDownlink);
 
   if (0 == max_data_bytes_per_frame) {
     return;
@@ -475,11 +479,12 @@ void MacThreadBaseStation::ProcessUdpPacketsFromApps() {
 void MacThreadBaseStation::SendCodeblocksToPhy(EventData event) {
   const size_t frame_id = gen_tag_t(event.tags_[0]).frame_id_;
   size_t ue_id = gen_tag_t(event.tags_[0]).ue_id_;
-  const size_t mac_packet_length = cfg_->MacPacketLength(Direction::kDownlink);
+  const size_t mac_packet_length =
+      cfg_->MacParams().MacPacketLength(Direction::kDownlink);
   const size_t mac_payload_length =
-      cfg_->MacPayloadMaxLength(Direction::kDownlink);
+      cfg_->MacParams().MacPayloadMaxLength(Direction::kDownlink);
   const size_t num_mac_packets_per_frame =
-      cfg_->MacPacketsPerframe(Direction::kDownlink);
+      cfg_->MacParams().MacPacketsPerframe(Direction::kDownlink);
   const size_t num_pilot_symbols = cfg_->Frame().ClientDlPilotSymbols();
   if (0 == mac_payload_length) {
     return;
@@ -530,7 +535,7 @@ void MacThreadBaseStation::SendCodeblocksToPhy(EventData event) {
 
         ss << "MacThreadBasestation: created packet frame " << frame_id
            << ", pkt " << pkt_id << ", size "
-           << cfg_->MacPayloadMaxLength(Direction::kDownlink)
+           << cfg_->MacParams().MacPayloadMaxLength(Direction::kDownlink)
            << " radio buff id " << radio_buf_id << ", loc " << (size_t)pkt
            << " dest offset " << dest_pkt_offset << std::endl;
 
