@@ -252,7 +252,7 @@ void Agora::ScheduleCodeblocks(EventType event_type, Direction dir,
   auto base_tag = gen_tag_t::FrmSymCb(frame_id, symbol_idx, 0);
   auto ue_list = mac_sched_->ScheduledUeList(frame_id, 0);
   const size_t num_tasks =
-      ue_list.n_elem * config_->MacParams().LdpcConfig(dir).NumBlocksInSymbol();
+      ue_list.n_elem * mac_sched_->Params().LdpcConfig(dir).NumBlocksInSymbol();
   size_t num_blocks = num_tasks / config_->EncodeBlockSize();
   const size_t num_remainder = num_tasks % config_->EncodeBlockSize();
   if (num_remainder > 0) {
@@ -1278,7 +1278,7 @@ void Agora::InitializeThreads() {
 void Agora::SaveDecodeDataToFile(int frame_id) {
   const auto& cfg = config_;
   const size_t num_decoded_bytes =
-      cfg->MacParams().MacPacketLength(Direction::kUplink);
+      mac_sched_->Params().MacPacketLength(Direction::kUplink);
   auto ue_list = mac_sched_->ScheduledUeList(frame_id, 0 /*sc_id*/);
   AGORA_LOG_INFO("Saving decode data to %s\n", kDecodeDataFilename.c_str());
   auto* fp = std::fopen(kDecodeDataFilename.c_str(), "wb");

@@ -136,9 +136,8 @@ void DoPrecode::LoadInputData(size_t frame_id, size_t symbol_idx_dl,
         Direction::kDownlink, kDebugBypassEncode ? 0 : frame_id,
         data_symbol_idx_dl, user_id, cfg_->GetOFDMDataIndex(sc_id));
     Table<complex_float> mod_table =
-        cfg_->MacParams().ModTable(Direction::kDownlink);
+        mac_sched_->Params().ModTable(Direction::kDownlink);
     data_ptr[sp_id] = ModSingleUint8((uint8_t)(*raw_data_ptr), mod_table);
-    //                cfg_->MacParams().ModTable(Direction::kDownlink));
   }
 }
 
