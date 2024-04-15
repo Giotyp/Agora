@@ -632,15 +632,20 @@ void Agora::Start() {
             rsm.status_msg_1_ =
                 sysconf(_SC_NPROCESSORS_ONLN);  // Total cores available
             rsm.status_msg_2_ = kMinWorkers;
-            rsm.status_msg_3_ = cfg->UeAntNum();
+            rsm.status_msg_3_ = cfg->BsAntNum();
+            rsm.status_msg_4_ = cfg->UeAntNum();
             AGORA_LOG_INFO(
                 "Agora: Sending cores details to RP of rest of alloc %zu, max "
-                "cores %zu, min workers %zu, max spatial streams %zu\n",
-                rsm.status_msg_0_, rsm.status_msg_1_, rsm.status_msg_2_, rsm.status_msg_3_);
+                "cores %zu, min workers %zu, max bs ants %zu, max spatial streams %zu\n",
+                rsm.status_msg_0_, rsm.status_msg_1_, rsm.status_msg_2_, rsm.status_msg_3_, rsm.status_msg_4_);
             TryEnqueueFallback(
                 &rp_request_queue_,
-                EventData(EventType::kPacketToRp, rsm.status_msg_0_,
-                          rsm.status_msg_1_, rsm.status_msg_2_, rsm.status_msg_3_));
+                EventData(EventType::kPacketToRp,
+                    rsm.status_msg_0_,
+                    rsm.status_msg_1_,
+                    rsm.status_msg_2_,
+                    rsm.status_msg_3_,
+                    rsm.status_msg_4_));
           } else if (rcm.msg_type_ == 1) {
             // Current latency, cores, spatial streams and frame info to RP
             RPStatusMsg rsm;
@@ -648,14 +653,19 @@ void Agora::Start() {
             rsm.status_msg_1_ = worker_set_->GetCoresInfo();
             rsm.status_msg_2_ = cfg->SpatialStreamsNum();
             rsm.status_msg_3_ = this->stats_->LastFrameId();
+            rsm.status_msg_4_ = 0; // Only a place holder for now, can be used in future
             AGORA_LOG_INFO(
                 "Agora: Sending status to RP of latency %zu, current workers "
                 "%zu, current spatial streams %zu, last frame id %zu\n",
                 rsm.status_msg_0_, rsm.status_msg_1_, rsm.status_msg_2_, rsm.status_msg_3_);
             TryEnqueueFallback(
                 &rp_request_queue_,
-                EventData(EventType::kPacketToRp, rsm.status_msg_0_,
-                          rsm.status_msg_1_, rsm.status_msg_2_, rsm.status_msg_3_));
+                EventData(EventType::kPacketToRp,
+                    rsm.status_msg_0_,
+                    rsm.status_msg_1_,
+                    rsm.status_msg_2_,
+                    rsm.status_msg_3_,
+                    rsm.status_msg_4_));
           } else {
             RtAssert(false, "Invalid msg type to RP\n");
           }

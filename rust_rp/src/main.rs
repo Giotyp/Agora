@@ -5,6 +5,7 @@ use std::cmp::Ordering;
 use serde_json;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write, BufReader};
+use std::arch::asm;
 
 extern crate rand;
 use rand::Rng;
@@ -13,8 +14,9 @@ use rand::Rng;
 #[async_trait]
 trait AgoraEnv {
     fn new() -> Self;
-    fn set_initial_values(&mut self, num_max_cores: u16, num_min_cores: u16, num_users: u16, num_latency_levels: u16, num_actions: u16, max_latency_limit: f32, ma_window_size: u16, data_outlier_percentage: u16, rewards: Vec<i16>, state: u64, done: bool);
-    fn reset_ma_filter(&mut self, num_max_cores: u16, num_users: u16, ma_window_size: u16);
+    fn rdtsc() -> u64;
+    fn set_initial_values(&mut self, num_max_cores: u16, num_min_cores: u16, num_max_users: u16, num_latency_levels: u16, num_actions: u16, max_latency_limit: f32, ma_window_size: u16, data_outlier_percentage: u16, rewards: Vec<i16>, state: u64, done: bool);
+    fn reset_ma_filter(&mut self, num_max_cores: u16, num_max_users: u16, ma_window_size: u16);
     fn reset(&mut self) -> u64;
     fn set(&mut self, state: u64);
     fn compute_state(&mut self, curr_cores: u16, curr_users: u16, curr_latency: u16) -> u64;
@@ -36,7 +38,7 @@ trait AgoraEnv {
 struct MyAgoraEnv {
     num_max_cores: u16,
     num_min_cores: u16,
-    num_users: u16,
+    num_max_users: u16,
     num_latency_levels: u16,
     num_states: u64,
     num_actions: u16,
@@ -58,7 +60,7 @@ impl AgoraEnv for MyAgoraEnv {
         MyAgoraEnv {
             num_max_cores: 10,
             num_min_cores: 1,
-            num_users: 16,
+            num_max_users: 16,
             num_latency_levels: 10 + 1,
             num_states: 10 * 16 * (10 + 1),
             num_actions: 3,
@@ -73,13 +75,27 @@ impl AgoraEnv for MyAgoraEnv {
             done: false }
     }
 
-    fn set_initial_values(&mut self, num_max_cores: u16, num_min_cores: u16, num_users: u16, num_latency_levels: u16, num_actions: u16, max_latency_limit: f32, ma_window_size: u16, data_outlier_percentage: u16, rewards: Vec<i16>, state: u64, done: bool) {
+    fn rdtsc() -> u64 {
+        let mut rax: u64;
+        let mut rdx: u64;
+        unsafe {
+            asm!(
+                "rdtsc",
+                out("rax") rax,
+                out("rdx") rdx,
+                options(pure, nomem, nostack, preserves_flags)
+            );
+        }
+        (rdx << 32) | rax
+    }
+
+    fn set_initial_values(&mut self, num_max_cores: u16, num_min_cores: u16, num_max_users: u16, num_latency_levels: u16, num_actions: u16, max_latency_limit: f32, ma_window_size: u16, data_outlier_percentage: u16, rewards: Vec<i16>, state: u64, done: bool) {
         // Set initial values
         self.num_max_cores = num_max_cores;
         self.num_min_cores = num_min_cores;
-        self.num_users = num_users;
+        self.num_max_users = num_max_users;
         self.num_latency_levels = num_latency_levels;
-        self.num_states = num_max_cores as u64 * num_users as u64 * num_latency_levels as u64;
+        self.num_states = num_max_cores as u64 * num_max_users as u64 * num_latency_levels as u64;
         self.num_actions = num_actions;
         self.max_latency_limit = max_latency_limit;
         self.ma_window_size = ma_window_size;
@@ -89,11 +105,11 @@ impl AgoraEnv for MyAgoraEnv {
         self.done = done;
     }
 
-    fn reset_ma_filter(&mut self, num_max_cores: u16, num_users: u16, ma_window_size: u16) {
+    fn reset_ma_filter(&mut self, num_max_cores: u16, num_max_users: u16, ma_window_size: u16) {
         // Reset ma filter contents
-        self.ma_active_window_sizes = vec![vec![0; num_users as usize]; num_max_cores as usize];
-        self.ma_window = vec![vec![vec![0.0; ma_window_size as usize]; num_users as usize]; num_max_cores as usize];
-        self.ma_no_change_count = vec![vec![0; num_users as usize]; num_max_cores as usize];
+        self.ma_active_window_sizes = vec![vec![0; num_max_users as usize]; num_max_cores as usize];
+        self.ma_window = vec![vec![vec![0.0; ma_window_size as usize]; num_max_users as usize]; num_max_cores as usize];
+        self.ma_no_change_count = vec![vec![0; num_max_users as usize]; num_max_cores as usize];
     }
 
     fn reset(&mut self) -> u64 {
@@ -109,7 +125,7 @@ impl AgoraEnv for MyAgoraEnv {
     }
 
     fn compute_state(&mut self, curr_cores: u16, curr_users: u16, curr_latency: u16) -> u64 {
-        let curr_state = (curr_cores as u64 + curr_users as u64 * self.num_max_cores as u64 + curr_latency as u64 * self.num_max_cores as u64 * self.num_users as u64) % self.num_states;
+        let curr_state = (curr_cores as u64 + curr_users as u64 * self.num_max_cores as u64 + curr_latency as u64 * self.num_max_cores as u64 * self.num_max_users as u64) % self.num_states;
 
         curr_state
     }
@@ -125,7 +141,7 @@ impl AgoraEnv for MyAgoraEnv {
     }
 
     fn get_curr_users(&mut self, state: u64) -> u16 {
-        let curr_users = (state / self.num_max_cores as u64) % self.num_users as u64;
+        let curr_users = (state / self.num_max_cores as u64) % self.num_max_users as u64;
 
         curr_users as u16
     }
@@ -251,7 +267,7 @@ impl AgoraEnv for MyAgoraEnv {
     async fn step_real(&mut self, socket: &mut UdpSocket, action: u16) -> io::Result<(f32, u16, u16, u64, i16, bool)> {
         // Take a step in the environment based on the given action
         let curr_cores = (self.state % self.num_max_cores as u64) as u16;
-        // let curr_users = ((self.state / self.num_max_cores as u64) % self.num_users as u64) as u16;
+        // let curr_users = ((self.state / self.num_max_cores as u64) % self.num_max_users as u64) as u16;
         let next_cores;
 
         let curr_cores_ag = MyAgoraEnv::rl_to_agora_index_mapping(self, curr_cores);
@@ -386,7 +402,7 @@ impl AgoraEnv for MyAgoraEnv {
     fn step_emulated(&mut self, action: u16) -> (u64, i16, bool) {
         // Take a step in the environment based on the given action
         let curr_cores = (self.state % self.num_max_cores as u64) as u16;
-        let curr_users = ((self.state / self.num_max_cores as u64) % self.num_users as u64) as u16;
+        let curr_users = ((self.state / self.num_max_cores as u64) % self.num_max_users as u64) as u16;
         let next_cores;
 
         if action == 1 { // Add One Core
@@ -430,8 +446,8 @@ impl AgoraEnv for MyAgoraEnv {
 
     async fn print_state(&mut self, state: u64, delay: u64) {
         let curr_cores = state % self.num_max_cores as u64;
-        let curr_users = (state / self.num_max_cores as u64) % self.num_users as u64;
-        let curr_latency = (state / (self.num_max_cores as u64 * self.num_users as u64)) % self.num_latency_levels as u64;
+        let curr_users = (state / self.num_max_cores as u64) % self.num_max_users as u64;
+        let curr_latency = (state / (self.num_max_cores as u64 * self.num_max_users as u64)) % self.num_latency_levels as u64;
         println!("\nState {} is decoded as: ", state);
         println!("curr_cores: {}", curr_cores);
         println!("curr_users: {}", curr_users);
@@ -467,12 +483,14 @@ async fn main() -> io::Result<()> {
     let mut socket = create_udp_socket(RX_ADDR).await?;
     let mut one_time_cores_update = true;
     delay_for(Duration::from_secs(1)).await; // wait for 5s to start
-    let retrieved_msg = retrieve_agora_cores(&mut socket).await?;
+    let retrieved_msg = retrieve_agora_config(&mut socket).await?;
     let cores_for_rest = retrieved_msg[0]; // retrieved_msg[0] has the cores allocated for rest of the processing in Agora
     let max_cores_for_workers = retrieved_msg[1] - retrieved_msg[0]; // retrieved_msg[1] has the max cores available for workers
     let min_cores_for_workers = retrieved_msg[2];  // retrieved_msg[2] has the min cores available for workers
-    let max_users = retrieved_msg[3];
-    println!("Agora cores details: cores for rest - {}, max cores for workers - {}, min core(s) for workers - {}, max user(s) - {}\n", cores_for_rest, max_cores_for_workers, min_cores_for_workers, max_users);
+    let max_bs_ants = retrieved_msg[3]; // retrieved_msg[3] has the max bs ants configured
+    let max_users = retrieved_msg[4]; // retrieved_msg[4] has the max users configured
+    println!("Agora cores details: cores for rest - {}, max cores for workers - {}, min core(s) for workers - {}, max bs ant(s) - {}, max user(s) - {}\n",
+        cores_for_rest, max_cores_for_workers, min_cores_for_workers, max_bs_ants, max_users);
     loop {
         if RP_MODE == 0 {  // Retrieve Agora status periodically
             delay_for(Duration::from_millis(PERIODICITY)).await;
@@ -518,7 +536,7 @@ async fn main() -> io::Result<()> {
                 let is_testing_enabled = false;
                 let num_max_cores;
                 let num_min_cores;
-                let num_users;
+                let num_max_users;
                 let num_latency_levels;
                 let num_actions;
                 let max_latency_limit;
@@ -529,7 +547,7 @@ async fn main() -> io::Result<()> {
                 if is_real_agora == true {
                     num_max_cores = 8;
                     num_min_cores = 4;
-                    num_users = 8;
+                    num_max_users = 8;
                     num_latency_levels = 10 + 1; // + 1 --> To account for max_latency_limit and beyond latency values
                     num_actions = 3;
                     max_latency_limit = 1000.0;
@@ -537,7 +555,7 @@ async fn main() -> io::Result<()> {
                 } else {
                     num_max_cores = 10;
                     num_min_cores = 1;
-                    num_users = 16;
+                    num_max_users = 16;
                     num_latency_levels = 10 + 1; // + 1 --> To account for max_latency_limit and beyond latency values
                     num_actions = 3;
                     max_latency_limit = 0.001;
@@ -549,29 +567,29 @@ async fn main() -> io::Result<()> {
                 let gamma = 0.9;  // discount factor
                 let epsilon = 0.1;  // exploration-exploitation trade-off
         
-                let num_episodes = 1000;
-                let terminate_count = 1000; // Epochs count to terminate training when not converging
-                let consecutive_epochs = 5; // Number of consecutive epochs with same state and reward to treat the training converged. Applicable when the target reward is the least negative.
+                let num_episodes = 2;
+                let terminate_count = 10; // Epochs count to terminate training when not converging
+                let consecutive_epochs_exit_count = 5; // Number of consecutive epochs with same state and reward to treat the training converged. Applicable when the target reward is the least negative.
+                let alternative_epochs_exit_count = 5; // Number of alternative epochs with same state and reward to treat the training converged. Applicable when the target reward is the least negative.
 
                 // Create an instance of the agora environment using the 'new' function
                 let mut agora_env = MyAgoraEnv::new();
-                agora_env.set_initial_values(num_max_cores, num_min_cores, num_users, num_latency_levels, num_actions, max_latency_limit, ma_window_size as u16, data_outlier_percentage, rewards, 0, false); // Set initial state to 2 and done to false
+                agora_env.set_initial_values(num_max_cores, num_min_cores, num_max_users, num_latency_levels, num_actions, max_latency_limit, ma_window_size as u16, data_outlier_percentage, rewards, 0, false); // Set initial state to 2 and done to false
 
                 let num_states = agora_env.get_num_states();
                 // println!("num_states {:?}\n", num_states);
 
                 // Try to open existing cores_absolute_latency file
                 let file_result = OpenOptions::new().read(true).open("cores_absolute_latency.json");
-
                 let mut cores_absolute_latency: Vec<Vec<Vec<f32>>> = if let Ok(file) = file_result {
                     // Read existing cores_absolute_latency content and parse JSON
                     let reader = BufReader::new(file);
-                    let content: Vec<Vec<Vec<f32>>> = serde_json::from_reader(reader).unwrap_or_else(|_| vec![vec![vec![0.0; num_latency_levels as usize]; num_users as usize]; num_max_cores as usize]);
+                    let content: Vec<Vec<Vec<f32>>> = serde_json::from_reader(reader).unwrap_or_else(|_| vec![vec![vec![0.0; num_latency_levels as usize]; num_max_users as usize]; num_max_cores as usize]);
                     println!("cores_absolute_latency loaded from cores_absolute_latency.json");
                     content
                 } else {
                     println!("cores_absolute_latency.json does not exist. Creating cores_absolute_latency.json and initializing with zeros");
-                    vec![vec![vec![0.0; num_latency_levels as usize]; num_users as usize]; num_max_cores as usize]
+                    vec![vec![vec![0.0; num_latency_levels as usize]; num_max_users as usize]; num_max_cores as usize]
                 };
             
                 // Initialize q_table with zeros only if q_table.json doesn't exist
@@ -600,20 +618,24 @@ async fn main() -> io::Result<()> {
                         println!("Episode: {:?}\n", episode);
 
                         // Reset ma filter
-                        println!("Resetting ma filter contents ...");
-                        agora_env.reset_ma_filter(num_max_cores, num_users, ma_window_size as u16);
+                        println!("Resetting moving average filter contents ...");
+                        agora_env.reset_ma_filter(num_max_cores, num_max_users, ma_window_size as u16);
 
                         // Reset the state with a random value
                         let mut state;
                         // let mut state = agora_env.reset();
-                        // state = 269;
                         let mut rng = rand::thread_rng();
                         let reset_cores = rng.gen_range((num_min_cores as u16)..(num_max_cores as u16));
-                        // let reset_cores = 9;
                         let mut epochs = 0;
+                        let mut yet_yet_previous_reward = 0;
+                        let mut yet_previous_reward = 0;
                         let mut previous_reward = 0;
-                        let mut cont_epochs_count_in_target_reward = 1;
+                        let mut cont_epochs_count_in_same_state_reward = 1;
+                        let mut alternating_epochs_count = 3; // Count initialized with 3 since two alternative counts would have already reached
                         let mut agora_cores;
+                        let mut yet_yet_previous_state;
+                        let mut yet_previous_state;
+                        let mut previous_state;
                         let mut next_state;
                         let mut reward = -40;
                         let mut action;
@@ -679,12 +701,16 @@ async fn main() -> io::Result<()> {
                         let reset_cores_rl = agora_env.agora_to_rl_index_mapping(reset_cores as u16);
                         let reset_users_rl = agora_env.agora_to_rl_index_mapping(reset_users as u16);
                         state = agora_env.compute_state(reset_cores_rl as u16, reset_users_rl as u16, reset_latency as u16);
+                        previous_state = state;
+                        yet_previous_state = state;
+                        yet_yet_previous_state = state;
 
                         while done == false {
                             // Count epochs
                             epochs += 1;
 
-                            println!("Episode {:?}, Epoch {:?}\n", episode, epochs);
+                            let mut current_tsc = MyAgoraEnv::rdtsc();
+                            println!("TSC: {:?}, Episode {:?}, Epoch {:?}\n", current_tsc, episode, epochs);
                             agora_env.set(state);
                             let users_before_action = agora_env.get_curr_users(state);
                             let users_before_action_ag = agora_env.rl_to_agora_index_mapping(users_before_action as u16);
@@ -702,38 +728,64 @@ async fn main() -> io::Result<()> {
                                 action = argmax_row(&q_table, state as usize);
                                 println!("Exploit: action for state {}: {} (0 - No change in cores, 1 - Add one core, 2 - Remove one core)", state, action);
                             }
-                            // action = 0;
 
                             if is_real_agora == true {
                                 let ma_absolute_latency;
                                 let agora_users;
                                 (ma_absolute_latency, agora_cores, agora_users, next_state, reward, done) = agora_env.step_real(&mut socket, action as u16).await?;
-                                println!("step_output: ma_absolute_latency {}, current_cores {}, current_users {}, next_state {}, reward {}, done {}\n",
-                                    ma_absolute_latency, agora_cores, agora_users, next_state, reward, done);
+                                current_tsc = MyAgoraEnv::rdtsc();
+                                println!("TSC: {:?}, step_output: ma_absolute_latency {}, current_cores {}, current_users {}, next_state {}, reward {}, done {}\n",
+                                    current_tsc, ma_absolute_latency, agora_cores, agora_users, next_state, reward, done);
                                 let agora_cores_rl = agora_env.agora_to_rl_index_mapping(agora_cores as u16);
                                 let agora_users_rl = agora_env.agora_to_rl_index_mapping(agora_users as u16);
                                 cores_absolute_latency[agora_cores_rl as usize][agora_users_rl as usize].push(ma_absolute_latency);
                             } else {
                                 let step_output = agora_env.step_emulated(action as u16);
+                                current_tsc = MyAgoraEnv::rdtsc();
                                 next_state = step_output.0;
                                 reward = step_output.1;
                                 done = step_output.2;
-                                println!("step_output: next_state {}, reward {}, done {}\n", next_state, reward, done);
+                                println!("TSC: {:?}, step_output: next_state {}, reward {}, done {}\n", current_tsc, next_state, reward, done);
                             }
 
-                            // Check consecutive epochs, rewards and states condition to exit learning
-                            if reward == previous_reward && state == next_state {
-                                cont_epochs_count_in_target_reward += 1;
-                                if cont_epochs_count_in_target_reward == consecutive_epochs {
+                            // Check consecutive epochs, states and rewards condition to exit training
+                            if state == previous_state && reward == previous_reward {
+                                cont_epochs_count_in_same_state_reward += 1;
+                                println!("cont_epochs_count_in_same_state_reward: {}", cont_epochs_count_in_same_state_reward);
+                                if cont_epochs_count_in_same_state_reward == consecutive_epochs_exit_count {
                                     done = true;
-                                    println!("previous_reward: {}", previous_reward);
-                                    println!("reward: {}", reward);
                                     println!("state: {}", state);
-                                    println!("next_state: {}", next_state);
-                                    println!("cont_epochs_count_in_target_reward: {}", cont_epochs_count_in_target_reward);
+                                    println!("previous_state: {}", previous_state);
+                                    println!("reward: {}", reward);
+                                    println!("previous_reward: {}", previous_reward);
+                                    println!("Terminating training for Episode {} based on continous count of {} Epochs with same state and reward ...\n",
+                                        episode, cont_epochs_count_in_same_state_reward);
                                 }
                             } else {
-                                cont_epochs_count_in_target_reward = 1;
+                                cont_epochs_count_in_same_state_reward = 1;
+                                // println!("Countinous epochs count is rest to {} ...\n", cont_epochs_count_in_same_state_reward);
+                            }
+
+                            // Check alternating epochs, states and rewards condition to exit training
+                            if (state == yet_previous_state && reward == yet_previous_reward) && (previous_state == yet_yet_previous_state && previous_reward == yet_yet_previous_reward) {
+                                alternating_epochs_count += 1;
+                                println!("alternating_epochs_count: {}", alternating_epochs_count);
+                                if alternating_epochs_count == alternative_epochs_exit_count {
+                                    done = true;
+                                    println!("yet_yet_previous_state: {}", yet_yet_previous_state);
+                                    println!("yet_previous_state: {}", yet_previous_state);
+                                    println!("previous_state: {}", previous_state);
+                                    println!("state: {}", state);
+                                    println!("yet_yet_previous_reward: {}", yet_yet_previous_reward);
+                                    println!("yet_previous_reward: {}", yet_previous_reward);
+                                    println!("previous_reward: {}", previous_reward);
+                                    println!("reward: {}", reward);
+                                    println!("Terminating training for Episode {} based on alternating count of {} Epochs ...\n",
+                                        episode, alternating_epochs_count);
+                                }                                
+                            } else {
+                                alternating_epochs_count = 3;
+                                // println!("Alternating epochs count is rest to {} ...\n", alternating_epochs_count);
                             }
     
                             let users_after_action = agora_env.get_curr_users(next_state);
@@ -755,18 +807,23 @@ async fn main() -> io::Result<()> {
                             }
     
                             // Update state
+                            yet_yet_previous_state = yet_previous_state;
+                            yet_previous_state = previous_state;
+                            previous_state = state;
                             state = next_state;
 
                             // Update reward
+                            yet_yet_previous_reward = yet_previous_reward;
+                            yet_previous_reward = previous_reward;
                             previous_reward = reward;
     
                             if epochs == terminate_count {
-                                println!("Terminating training for Episode {} based on terminal count of {} Epochs ...\n", episode, terminate_count);
+                                println!("Terminating training for Episode {} based on terminal count of {} Epochs ...\n",
+                                    episode, terminate_count);
                                 done = true;
                             }
                         }
-                        println!("episode {:?} state {:?} reward {:?} epochs {:?}\n", episode, state, reward, epochs);
-                        // agora_env.print_state(next_state, UDP_WAIT_TIME).await;
+                        println!("episode {:?} state {:?} reward {:?} Epochs {:?}\n", episode, state, reward, epochs);
 
                         // println!("{:?}", q_table);
 
@@ -795,19 +852,24 @@ async fn main() -> io::Result<()> {
                     println!("{:?}", q_table);
     
                     // Reset ma filter
-                    println!("Resetting ma filter contents ...");
-                    agora_env.reset_ma_filter(num_max_cores, num_users, ma_window_size as u16);
+                    println!("Resetting moving average filter contents ...");
+                    agora_env.reset_ma_filter(num_max_cores, num_max_users, ma_window_size as u16);
 
                     // Reset the state with a random value
-                    // let mut state = agora_env.reset();
-                    // agora_env.print_state(state, UDP_WAIT_TIME).await;
                     let mut state;
+                    // let mut state = agora_env.reset();
                     let mut rng = rand::thread_rng();
                     let reset_cores = rng.gen_range((num_min_cores as u16)..(num_max_cores as u16));
                     let mut epochs = 0;
+                    let mut yet_yet_previous_reward = 0;
+                    let mut yet_previous_reward = 0;
                     let mut previous_reward = 0;
-                    let mut cont_epochs_count_in_target_reward = 1;
+                    let mut cont_epochs_count_in_same_state_reward = 1;
+                    let mut alternating_epochs_count = 3; // Count initialized with 3 since two alternative counts would have already reached
                     let mut agora_cores;
+                    let mut yet_yet_previous_state;
+                    let mut yet_previous_state;
+                    let mut previous_state;
                     let mut next_state;
                     let mut reward = -40;
                     let mut action;
@@ -871,7 +933,11 @@ async fn main() -> io::Result<()> {
                     println!("Agora status: reset absolute latency - {}, reset cores - {}, reset users - {}, frame id - {}\n",
                         reset_absolute_latency, reset_cores, reset_users, retrieved_msg[3]);
                     let reset_cores_rl = agora_env.agora_to_rl_index_mapping(reset_cores as u16);
-                    state = agora_env.compute_state(reset_cores_rl as u16, reset_users as u16, reset_latency as u16);
+                    let reset_users_rl = agora_env.agora_to_rl_index_mapping(reset_users as u16);
+                    state = agora_env.compute_state(reset_cores_rl as u16, reset_users_rl as u16, reset_latency as u16);
+                    previous_state = state;
+                    yet_previous_state = state;
+                    yet_yet_previous_state = state;
 
                     while done == false {
                         // Count epochs
@@ -879,16 +945,16 @@ async fn main() -> io::Result<()> {
 
                         println!("Epoch {:?}\n", epochs);
                         agora_env.set(state);
+                        println!("elements of state (before update): {}", state);
+                        for &row_element in &q_table[state as usize] {
+                            println!("{}", row_element);
+                        }
 
                         let explore_exploit_rand = rng.gen_range(0.0..1.0);
                         if explore_exploit_rand < epsilon { // Explore action space
                             action = rng.gen_range(0..num_actions as usize - 1);
                             println!("Explore: action for state {}: {} (0 - No change in cores, 1 - Add one core, 2 - Remove one core)", state, action);
                         } else { // Exploit learned values
-                            println!("elements of state: {}", state);
-                            for &row_element in &q_table[state as usize] {
-                                println!("{}", row_element);
-                            }
                             action = argmax_row(&q_table, state as usize);
                             println!("Exploit: action for state {}: {} (0 - No change in cores, 1 - Add one core, 2 - Remove one core)", state, action);
                         }
@@ -899,34 +965,66 @@ async fn main() -> io::Result<()> {
                             (ma_absolute_latency, agora_cores, agora_users, next_state, reward, done) = agora_env.step_real(&mut socket, action as u16).await?;
                             println!("step_output: ma_absolute_latency {}, current_cores {}, current_users {}, next_state {}, reward {}, done {}\n",
                                 ma_absolute_latency, agora_cores, agora_users, next_state, reward, done);    
+                            let agora_cores_rl = agora_env.agora_to_rl_index_mapping(agora_cores as u16);
+                            let agora_users_rl = agora_env.agora_to_rl_index_mapping(agora_users as u16);
+                            cores_absolute_latency[agora_cores_rl as usize][agora_users_rl as usize].push(ma_absolute_latency);
                         } else {
                             let step_output = agora_env.step_emulated(action as u16);
-
                             next_state = step_output.0;
                             reward = step_output.1;
                             done = step_output.2;
                             println!("step_output: next_state {}, reward {}, done {}\n", next_state, reward, done);    
                         }
 
-                        // Check consecutive epochs, rewards and states condition to exit learning
-                        if reward == previous_reward && state == next_state {
-                            cont_epochs_count_in_target_reward += 1;
-                            if cont_epochs_count_in_target_reward == consecutive_epochs {
+                        // Check consecutive epochs, states and rewards condition to exit testing
+                        if state == previous_state && reward == previous_reward {
+                            cont_epochs_count_in_same_state_reward += 1;
+                            if cont_epochs_count_in_same_state_reward == consecutive_epochs_exit_count {
                                 done = true;
-                                println!("previous_reward: {}", previous_reward);
-                                println!("reward: {}", reward);
+                                println!("cont_epochs_count_in_same_state_reward: {}", cont_epochs_count_in_same_state_reward);
                                 println!("state: {}", state);
-                                println!("next_state: {}", next_state);
-                                println!("cont_epochs_count_in_target_reward: {}", cont_epochs_count_in_target_reward);
+                                println!("previous_state: {}", previous_state);
+                                println!("reward: {}", reward);
+                                println!("previous_reward: {}", previous_reward);
+                                println!("Terminating training for based on continous count of {} Epochs with same state and reward ...\n",
+                                    cont_epochs_count_in_same_state_reward);
                             }
                         } else {
-                            cont_epochs_count_in_target_reward = 1;
+                            cont_epochs_count_in_same_state_reward = 1;
+                            // println!("Countinous epochs count is rest to {} ...\n", cont_epochs_count_in_same_state_reward);
+                        }
+
+                        // Check alternating epochs, states and rewards condition to exit testing
+                        if (state == yet_previous_state && reward == yet_previous_reward) && (previous_state == yet_yet_previous_state && previous_reward == yet_yet_previous_reward) {
+                            alternating_epochs_count += 1;
+                            if alternating_epochs_count == alternative_epochs_exit_count {
+                                done = true;
+                                println!("alternating_epochs_count: {}", alternating_epochs_count);
+                                println!("yet_yet_previous_state: {}", yet_yet_previous_state);
+                                println!("yet_previous_state: {}", yet_previous_state);
+                                println!("previous_state: {}", previous_state);
+                                println!("state: {}", state);
+                                println!("yet_yet_previous_reward: {}", yet_yet_previous_reward);
+                                println!("yet_previous_reward: {}", yet_previous_reward);
+                                println!("previous_reward: {}", previous_reward);
+                                println!("reward: {}", reward);
+                                println!("Terminating testing based on alternating count of {} Epochs ...\n",
+                                    alternating_epochs_count);
+                            }                                
+                        } else {
+                            alternating_epochs_count = 3;
+                            // println!("Alternating epochs count is rest to {} ...\n", alternating_epochs_count);
                         }
 
                         // Update state
+                        yet_yet_previous_state = yet_previous_state;
+                        yet_previous_state = previous_state;
+                        previous_state = state;
                         state = next_state;
 
                         // Update reward
+                        yet_yet_previous_reward = yet_previous_reward;
+                        yet_previous_reward = previous_reward;
                         previous_reward = reward;
     
                         if epochs == terminate_count {
@@ -934,9 +1032,8 @@ async fn main() -> io::Result<()> {
                             done = true;
                         }
                     }
-                    println!("state {:?} reward {:?} epochs {:?}\n", state, reward, epochs);
+                    println!("state {:?} reward {:?} Epochs {:?}\n", state, reward, epochs);
                     println!("Testing completed ...");
-                    // agora_env.print_state(state, UDP_WAIT_TIME).await;                    
                 }
                 one_time_cores_update = !one_time_cores_update;
             }
@@ -985,15 +1082,17 @@ async fn create_udp_socket(host: &str) -> io::Result<UdpSocket> {
 
 // Send message through UDP socket
 async fn send_message(socket: &mut UdpSocket, message: &[u8; 24]) -> io::Result<()> {
+    let current_tsc = MyAgoraEnv::rdtsc();
     let len = socket.send_to(message, TX_ADDR).await?;
     let message_temp = [message[0], message[8], message[16]];
+
     if message[0] == 0 {
-        println!("{:?} bytes sent to {:?} (TX_ADDR) requesting Agora cores and users details", len, TX_ADDR);
+        println!("TSC: {:?} - {:?} bytes sent to {:?} (TX_ADDR) requesting Agora cores and users details", current_tsc, len, TX_ADDR);
     } else if message[0] == 1 {
         if message[8] == 0 && message[16] == 0 {
-            println!("{:?} bytes sent to {:?} (TX_ADDR) requesting Agora cores and latency details", len, TX_ADDR);
+            println!("TSC: {:?} - {:?} bytes sent to {:?} (TX_ADDR) requesting Agora cores and latency details", current_tsc, len, TX_ADDR);
         } else {
-            println!("{:?} bytes sent to {:?} (TX_ADDR) to update cores - content [msg type, add core, remove core]: {:?}", len, TX_ADDR, &message_temp);
+            println!("TSC: {:?} - {:?} bytes sent to {:?} (TX_ADDR) to update cores - content [msg type, add core, remove core]: {:?}", current_tsc, len, TX_ADDR, &message_temp);
         }
     } else {
         println!("Wrong message type to Agora");
@@ -1003,19 +1102,24 @@ async fn send_message(socket: &mut UdpSocket, message: &[u8; 24]) -> io::Result<
 }
 
 // Listen message on UDP socket
-async fn listen_message(socket: &mut UdpSocket) -> io::Result<[u64; 4]> {
-    let mut buf = [0u8; 32];
+async fn listen_message(socket: &mut UdpSocket) -> io::Result<[u64; 5]> {
+    let mut current_tsc = MyAgoraEnv::rdtsc();
+    println!("TSC before: {:?}", current_tsc);
+    let mut buf = [0u8; 40];
     let (len, addr) = socket.recv_from(&mut buf).await?;
-    if len != 32 {
+    current_tsc = MyAgoraEnv::rdtsc();
+    println!("TSC after: {:?}", current_tsc);
+    if len != 40 {
         // Handle invalid message length
         return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid message length"));
     }
     let a: u64 = u64::from_ne_bytes(buf[..8].try_into().unwrap());
     let b: u64 = u64::from_ne_bytes(buf[8..16].try_into().unwrap());
     let c: u64 = u64::from_ne_bytes(buf[16..24].try_into().unwrap());
-    let d: u64 = u64::from_ne_bytes(buf[24..].try_into().unwrap());
-    let message = [a, b, c, d];
-    println!("{:?} bytes received from {:?} (RX_ADDR) - content [msg_0, msg_1, msg_2, msg_3]: {:?}", len, addr, &message);
+    let d: u64 = u64::from_ne_bytes(buf[24..32].try_into().unwrap());
+    let e: u64 = u64::from_ne_bytes(buf[32..].try_into().unwrap());
+    let message = [a, b, c, d, e];
+    println!("TSC: {:?} - {:?} bytes received from {:?} (RX_ADDR) - content [msg_0, msg_1, msg_2, msg_3, msg_4]: {:?}", current_tsc, len, addr, &message);
 
     return Ok(message);
 }
@@ -1023,17 +1127,18 @@ async fn listen_message(socket: &mut UdpSocket) -> io::Result<[u64; 4]> {
 /* Resource Provisioner Functions */
 
 // Retrieve Agora status
-async fn retrieve_agora_cores(socket: &mut UdpSocket) -> io::Result<[u64; 4]> {
-    let message = [0; 24]; // message type 0 - retrieve Agora core details
+async fn retrieve_agora_config(socket: &mut UdpSocket) -> io::Result<[u64; 5]> {
+    let message = [0; 24]; // message type 0 - retrieve Agora config details
     send_message(socket, &message).await?;
     return listen_message(socket).await;
 }
 
 // Retrieve Agora status
-async fn retrieve_agora_traffic(socket: &mut UdpSocket) -> io::Result<[u64; 4]> {
+async fn retrieve_agora_traffic(socket: &mut UdpSocket) -> io::Result<[u64; 5]> {
     let mut message = [0; 24];
     message[0] = 1; // message type 1 - retrieve Agora core, user and latency details
     send_message(socket, &message).await?;
+    // Fifth byte is only a place holder for now, can be used in future
     return listen_message(socket).await;
 }
 

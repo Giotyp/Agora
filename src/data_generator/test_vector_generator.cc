@@ -88,11 +88,7 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
     uint8_t adapt_ues_array[cfg->FramesToTest()];
 
     if (cfg->AdaptUes()) {
-      if (kIsAdaptUesEveryFrameEnabled) {
-        for (size_t i = 0; i < cfg->FramesToTest(); ++i) {
-          adapt_ues_array[i] = distribution(gen);
-        }
-      } else {
+      if (cfg->DynamicCoreAlloc()) {
         size_t num_ues_adaptations = 10;
         for (size_t i = 0; i < num_ues_adaptations; ++i) {
           size_t sampled_ue_num = distribution(gen);
@@ -100,6 +96,10 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
                j < (cfg->FramesToTest() / num_ues_adaptations) * (i + 1); ++j) {
             adapt_ues_array[j] = sampled_ue_num;
           }
+        }
+      } else {
+        for (size_t i = 0; i < cfg->FramesToTest(); ++i) {
+          adapt_ues_array[i] = distribution(gen);
         }
       }
     } else {

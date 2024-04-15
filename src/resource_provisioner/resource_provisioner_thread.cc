@@ -63,25 +63,26 @@ void ResourceProvisionerThread::RequestEventFromAgora(size_t msg_type) {
  */
 void ResourceProvisionerThread::SendEventToAgora(const char* payload) {
   const auto* pkt = reinterpret_cast<const RPControlMsg*>(&payload[0]);
+  size_t current_tsc = GetTime::Rdtsc();
 
   if (pkt->msg_type_ == 0) {
     // request cores data
     AGORA_LOG_INFO(
-        "ResourceProvisionerThread: Requesting initial cores and users "
-        "allocation details from Agora\n");
+        "TSC: %zu - ResourceProvisionerThread: Requesting initial cores and users "
+        "allocation details from Agora\n", current_tsc);
     RequestEventFromAgora(pkt->msg_type_);
   } else if (pkt->msg_type_ == 1) {
     if (pkt->msg_arg_1_ == 0 && pkt->msg_arg_2_ == 0) {
       // request traffic data
       AGORA_LOG_INFO(
-          "ResourceProvisionerThread: Requesting current latency and cores "
-          "status from Agora\n");
+          "TSC: %zu - ResourceProvisionerThread: Requesting current latency and cores "
+          "status from Agora\n", current_tsc);
       RequestEventFromAgora(pkt->msg_type_);
     } else {
       // create event from pkt
       AGORA_LOG_INFO(
-          "ResourceProvisionerThread: Sending core update data to Agora of "
-          "msg type %zu, add_cores %zu, remove_cores %zu\n",
+          "TSC: %zu - ResourceProvisionerThread: Sending core update data to Agora of "
+          "msg type %zu, add_cores %zu, remove_cores %zu\n", current_tsc,
           pkt->msg_type_, pkt->msg_arg_1_, pkt->msg_arg_2_);
       EventData msg(EventType::kPacketFromRp, pkt->msg_type_, pkt->msg_arg_1_,
                     pkt->msg_arg_2_);
@@ -116,11 +117,11 @@ void ResourceProvisionerThread::ReceiveEventFromAgora() {
   if (rx_queue_->try_dequeue(event) == false) {
     return;
   }
-
+  size_t current_tsc = GetTime::Rdtsc();
   if (event.event_type_ == EventType::kPacketToRp) {
     AGORA_LOG_INFO(
-        "ResourceProvisionerThread: Received status from Agora of latency %zu, "
-        "current cores %zu, current spatial streams %zu, frame %zu\n",
+        "TSC: %zu - ResourceProvisionerThread: Received status from Agora of latency %zu, "
+        "current cores %zu, current spatial streams %zu, frame %zu\n", current_tsc,
         event.tags_[0], event.tags_[1], event.tags_[2], event.tags_[3]);
     SendUdpPacketsToRp(event);
   }
@@ -133,6 +134,7 @@ void ResourceProvisionerThread::SendUdpPacketsToRp(EventData event) {
   msg.status_msg_1_ = event.tags_[1];
   msg.status_msg_2_ = event.tags_[2];
   msg.status_msg_3_ = event.tags_[3];
+  msg.status_msg_4_ = event.tags_[4];
   udp_comm_->Send(cfg_->RpRemoteHostName(), cfg_->RpTxPort(), (std::byte*)&msg,
                   sizeof(RPStatusMsg));
 }
