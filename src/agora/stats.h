@@ -89,7 +89,7 @@ class Stats {
     this->master_timestamps_symbols_.at(static_cast<size_t>(timestamp_type))
         .at(frame_id % kNumStatsFrames)
         .at(symbol_id % kNumSymbolsPerFrame)
-        .at(block_id % kMaxAntennas) = GetTime::Rdtsc();
+        .at(block_id % kMaxDataSCs) = GetTime::Rdtsc();
   }
 
   /// From the master, get the RDTSC timestamp for a frame ID and timestamp
@@ -98,7 +98,7 @@ class Stats {
     return this->master_timestamps_symbols_.at(static_cast<size_t>(timestamp_type))
         .at(frame_id % kNumStatsFrames)
         .at(symbol_id % kNumSymbolsPerFrame)
-        .at(block_id % kMaxAntennas);
+        .at(block_id % kMaxDataSCs);
   }
 
   /// If worker stats collection is enabled, prsize_t a summary of stats
@@ -345,7 +345,7 @@ class Stats {
 
   /// Timestamps taken by the master thread at different points in a symbols's
   /// processing
-  std::array<std::array<std::array<std::array<double, kMaxAntennas>, kNumSymbolsPerFrame>,
+  std::array<std::array<std::array<std::array<double, kMaxDataSCs>, kNumSymbolsPerFrame>,
              kNumStatsFrames>,
              kNumTimestampTypes>
       master_timestamps_symbols_;

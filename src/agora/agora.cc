@@ -460,6 +460,8 @@ void Agora::Start() {
                                      beam_counters_.GetTaskCount(frame_id), 0);
             const bool last_beam_task =
                 this->beam_counters_.CompleteTask(frame_id);
+            // AGORA_LOG_INFO("Agora:kBeam frame_id %zu, last_beam_task %zu\n",
+            //   frame_id, last_beam_task);
             if (last_beam_task == true) {
               this->stats_->MasterSetTsc(TsType::kBeamDone, frame_id);
               beam_last_frame_ = frame_id;
@@ -494,12 +496,15 @@ void Agora::Start() {
           const size_t symbol_id = gen_tag_t(event.tags_[0]).symbol_id_;
           const size_t base_sc_id = gen_tag_t(event.tags_[0]).sc_id_;
 
+          this->stats_->MasterSetTscSymbol(TsType::kDemulDone, frame_id, symbol_id, base_sc_id);
           stats_->PrintPerTaskDone(
               PrintType::kDemul, frame_id, symbol_id, base_sc_id,
               demul_counters_.GetTaskCount(frame_id, symbol_id));
 
           const bool last_demul_task =
               this->demul_counters_.CompleteTask(frame_id, symbol_id);
+          // AGORA_LOG_INFO("Agora:kDemul frame_id %zu, symbol_id %zu, base_sc_id %zu, tsc %zu, last_demul_task %zu\n",
+          //   frame_id, symbol_id, base_sc_id, this->stats_->MasterGetTscSymbol(TsType::kDemulDone, frame_id, symbol_id, base_sc_id), last_demul_task);
 
           if (last_demul_task == true) {
             if (kUplinkHardDemod == false) {
@@ -570,10 +575,10 @@ void Agora::Start() {
           const size_t cb_id = gen_tag_t(event.tags_[0]).cb_id_;
 
           this->stats_->MasterSetTscSymbol(TsType::kDecodeDone, frame_id, symbol_id, cb_id);
-          // AGORA_LOG_INFO("Agora:kDecodeDone frame_id %zu, symbol_id %zu, cb_id %zu, tsc %zu\n",
-          //   frame_id, symbol_id, cb_id, this->stats_->MasterGetTscSymbol(TsType::kDecodeDone, frame_id, symbol_id, cb_id));
           const bool last_decode_task =
               this->decode_counters_.CompleteTask(frame_id, symbol_id);
+          // AGORA_LOG_INFO("Agora:kDecodeDone frame_id %zu, symbol_id %zu, cb_id %zu, tsc %zu, last_decode_task %zu\n",
+          //   frame_id, symbol_id, cb_id, this->stats_->MasterGetTscSymbol(TsType::kDecodeDone, frame_id, symbol_id, cb_id), last_decode_task);
           if (last_decode_task == true) {
             if constexpr (kEnableMac) {
               ScheduleUsers(EventType::kPacketToMac, frame_id, symbol_id);
@@ -799,6 +804,8 @@ void Agora::Start() {
               precode_counters_.GetTaskCount(frame_id, symbol_id));
           const bool last_precode_task =
               this->precode_counters_.CompleteTask(frame_id, symbol_id);
+          AGORA_LOG_INFO("Agora:kPrecode frame_id %zu, symbol_id %zu, sc_id %zu, last_precode_task %zu\n",
+            frame_id, symbol_id, sc_id, last_precode_task);
 
           if (last_precode_task == true) {
             // precode_cur_frame_for_symbol_.at(
@@ -1228,6 +1235,9 @@ void Agora::InitializeCounters() {
   rx_counters_.num_reciprocity_pkts_per_frame_ =
       (cfg->Frame().NumULCalSyms() * num_rx_ul_cal_antennas) +
       (cfg->Frame().NumDLCalSyms() * num_rx_dl_cal_antennas);
+
+  AGORA_LOG_INFO("Agora: Total pilot packets per frame: %zu\n",
+                 rx_counters_.num_pilot_pkts_per_frame_);
 
   AGORA_LOG_INFO("Agora: Total recip cal receive symbols per frame: %zu\n",
                  rx_counters_.num_reciprocity_pkts_per_frame_);

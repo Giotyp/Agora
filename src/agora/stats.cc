@@ -178,9 +178,9 @@ size_t Stats::MeasureLastFrameTsc() {
 
 double Stats::MeasureLastFrameLatency() {
   size_t frame_id = this->last_frame_id_;
-  size_t symbol_id = 2;
+  size_t symbol_id = (config_->Frame().NumTotalSyms() - 1); // Latency of symbol_id is sent to RP for frame_id
   size_t ref_tsc = SIZE_MAX;
-
+  // ref_tsc contains the start tsc for frame_id; start tsc of every symbol within a frame is not captured
   for (size_t j = 0; j < config_->SocketThreadNum(); j++) {
     ref_tsc = std::min(ref_tsc, this->frame_start_[j][frame_id]);
   }
@@ -207,7 +207,8 @@ double Stats::MeasureLastFrameLatency() {
 
   double processing_started = MasterGetUsSymbolFromRef(TsType::kSymbolRX, frame_id, symbol_id, master_min_tsc_symbolrx_idx, ref_tsc);
   double decoding_done = MasterGetUsSymbolFromRef(TsType::kDecodeDone, frame_id, symbol_id, master_max_tsc_decode_idx, ref_tsc);
-  AGORA_LOG_INFO("MeasureLastFrameLatency: frame_id %zu %zu %zu %zu %zu %zu %.3f %.3f\n", frame_id, symbol_id, master_min_tsc_symbolrx_idx, master_min_tsc_symbolrx, master_max_tsc_decode_idx, master_max_tsc_decode, processing_started, decoding_done);  
+  AGORA_LOG_INFO("MeasureLastFrameLatency: frame_id %zu symbol_id %zu ref_tsc %zu master_min_tsc_symbolrx_idx %zu master_min_tsc_symbolrx %zu master_max_tsc_decode_idx %zu master_max_tsc_decode %zu (master_max_tsc_decode - master_min_tsc_symbolrx) %zu processing_started %.3f decoding_done %.3f symbol latency %.3f\n",
+    frame_id, symbol_id, ref_tsc, master_min_tsc_symbolrx_idx, master_min_tsc_symbolrx, master_max_tsc_decode_idx, master_max_tsc_decode, (master_max_tsc_decode - master_min_tsc_symbolrx), processing_started, decoding_done, (decoding_done - processing_started));  
   return decoding_done - processing_started;
 }
 
@@ -218,7 +219,7 @@ void Stats::SaveToFile() {
   RtAssert(fp_debug != nullptr,
            std::string("Open file failed ") + std::to_string(errno));
 
-  // MeasureLastFrameLatency();
+  MeasureLastFrameLatency();
 
   size_t first_frame_idx = 0;
   size_t last_frame_idx = this->last_frame_id_;
@@ -363,7 +364,8 @@ void Stats::SaveToFile() {
         ref_tsc = std::min(ref_tsc, this->frame_start_[j][i]);
       }
       // Find tsc of first RX packet and last decode events in every ofdm symbol
-      for (size_t k = ul_data_symbol_start; k < 3; k++) {
+      for (size_t k = ul_data_symbol_start; k < config_->Frame().NumTotalSyms(); k++) {
+        // AGORA_LOG_INFO("stats: frame: %zu, i: %zu, k: %zu\n", frame, i, k);
         size_t master_min_tsc_symbolrx = MasterGetTscSymbol(TsType::kSymbolRX, i, k, 0);
         size_t master_min_tsc_symbolrx_idx = 0;
         for (size_t l = 1; l < config_->BsAntNum(); l++) {
@@ -391,7 +393,7 @@ void Stats::SaveToFile() {
             (master_max_tsc_decode - master_min_tsc_symbolrx),
             MasterGetUsSymbolFromRef(TsType::kSymbolRX, i, k, master_min_tsc_symbolrx_idx, ref_tsc),
             MasterGetUsSymbolFromRef(TsType::kDecodeDone, i, k, master_max_tsc_decode_idx, ref_tsc),
-            (MasterGetUsSymbolFromRef(TsType::kDecodeDone, i, k, master_max_tsc_decode_idx, ref_tsc) - MasterGetUsSymbolFromRef(TsType::kSymbolRX, i, k, 0, ref_tsc)),
+            (MasterGetUsSymbolFromRef(TsType::kDecodeDone, i, k, master_max_tsc_decode_idx, ref_tsc) - MasterGetUsSymbolFromRef(TsType::kSymbolRX, i, k, master_min_tsc_symbolrx_idx, ref_tsc)),
             this->doer_sum_us_.at(i));
         ref_tsc += ticks_per_symbol;
       }
