@@ -84,6 +84,7 @@ class MacUtils {
     return dir == Direction::kUplink ? this->ul_mcs_index_
                                      : this->dl_mcs_index_;
   }
+
   /// Get mac bits for this frame, symbol, user and code block ID
   inline int8_t* GetMacBits(Table<int8_t>& info_bits, Direction dir,
                             size_t frame_id, size_t symbol_id, size_t ue_id,
@@ -134,6 +135,7 @@ class MacUtils {
   // TODO: This number should independent of OFDM symbols
   static constexpr size_t kCbPerSymbol = 1;
 
+  FrameStats frame_;
   double frame_duration_;
   size_t ul_ofdm_data_num_;
   size_t dl_ofdm_data_num_;
@@ -204,7 +206,5 @@ class MacUtils {
   // Number of padding bytes per code block
   size_t ul_num_padding_bytes_per_cb_;
   size_t dl_num_padding_bytes_per_cb_;
-
-  FrameStats frame_;
 };
 #endif /* MAC_UTILS_H_ */

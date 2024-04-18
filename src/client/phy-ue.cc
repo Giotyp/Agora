@@ -47,13 +47,9 @@ PhyUe::PhyUe(Config* config)
       demod_buffer_(kFrameWnd, config->Frame().NumDlDataSyms(),
                     config->UeAntNum(),
                     kMaxModType * Roundup<64>(config->GetOFDMDataNum())),
-      decoded_buffer_(
-          kFrameWnd, config->Frame().NumDlDataSyms(), config->UeAntNum(),
-          config->MacParams()
-                  .LdpcConfig(Direction::kDownlink)
-                  .NumBlocksInSymbol() *
-              Roundup<64>(
-                  config->MacParams().NumBytesPerCb(Direction::kDownlink))) {
+      decoded_buffer_(kFrameWnd, config->Frame().NumDlDataSyms(),
+                      config->UeAntNum(),
+                      config->MaxPacketBytes(Direction::kDownlink)) {
   srand(time(nullptr));
   // TODO take into account the UeAntOffset to allow for multiple PhyUe
   // instances

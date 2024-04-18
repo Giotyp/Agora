@@ -16,10 +16,8 @@ AgoraBuffer::AgoraBuffer(Config* const cfg)
                       cfg->UeAntNum() * cfg->BsAntNum()),
       demod_buffer_(kFrameWnd, cfg->Frame().NumUlDataSyms(), cfg->UeAntNum(),
                     kMaxModType * cfg->OfdmDataNum()),
-      decoded_buffer_(
-          kFrameWnd, cfg->Frame().NumUlDataSyms(), cfg->UeAntNum(),
-          cfg->MacParams().LdpcConfig(Direction::kUplink).NumBlocksInSymbol() *
-              Roundup<64>(cfg->MacParams().NumBytesPerCb(Direction::kUplink))) {
+      decoded_buffer_(kFrameWnd, cfg->Frame().NumUlDataSyms(), cfg->UeAntNum(),
+                      cfg->MaxPacketBytes(Direction::kUplink)) {
   AllocateTables();
 }
 

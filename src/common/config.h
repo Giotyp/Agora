@@ -17,6 +17,7 @@
 
 #include "armadillo"
 #include "common_typedef_sdk.h"
+#include "comms-lib.h"
 #include "concurrent_queue_wrapper.h"
 #include "framestats.h"
 #include "gettime.h"
@@ -254,6 +255,16 @@ class Config {
   inline const nlohmann::json& DefaultMCSParams(Direction dir) const {
     return dir == Direction::kUplink ? this->ul_mcs_params_
                                      : this->dl_mcs_params_;
+  }
+  inline const size_t MaxPacketBytes(Direction dir) const {
+    size_t max_mod_bits = GetModOrderBits(kMaxMcsIndex);
+    size_t max_code_rate = GetCodeRate(kMaxMcsIndex);
+    size_t num_sc =
+        (dir == Direction::kUplink) ? ofdm_data_num_ : this->GetOFDMDataNum();
+    return (static_cast<size_t>(num_sc * max_code_rate * max_mod_bits /
+                                1024.0) +
+            7) /
+           8;
   }
   inline const MacUtils& MacParams() const { return this->mac_params_; }
 
@@ -695,12 +706,12 @@ class Config {
   nlohmann::json ul_mcs_params_;  // Uplink Modulation and Coding (MCS)
   nlohmann::json dl_mcs_params_;  // Downlink Modulation and Coding (MCS)
 
-  MacUtils mac_params_;
-
   // A class that holds the frame configuration the id contains letters
   // representing the symbol types in the frame (e.g., 'P' for pilot symbols,
   // 'U' for uplink data symbols)
   FrameStats frame_;
+
+  MacUtils mac_params_;
 
   std::atomic<bool> running_;
 

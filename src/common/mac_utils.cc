@@ -204,7 +204,6 @@ void MacUtils::UpdateUlMCS(const json& ul_mcs) {
     ul_mod_order_bits_ = GetModOrderBits(ul_mcs_index_);
     ul_modulation_ = MapModToStr(ul_mod_order_bits_);
     ul_code_rate_ = GetCodeRate(ul_mcs_index_);
-    ul_modulation_ = MapModToStr(ul_mod_order_bits_);
   }
   InitModulationTable(this->ul_mod_table_, ul_mod_order_bits_);
 
@@ -258,7 +257,6 @@ void MacUtils::UpdateDlMCS(const json& dl_mcs) {
     dl_mod_order_bits_ = GetModOrderBits(dl_mcs_index_);
     dl_modulation_ = MapModToStr(dl_mod_order_bits_);
     dl_code_rate_ = GetCodeRate(dl_mcs_index_);
-    dl_modulation_ = MapModToStr(dl_mod_order_bits_);
   }
   InitModulationTable(this->dl_mod_table_, dl_mod_order_bits_);
 
