@@ -657,15 +657,6 @@ class Config {
     }
   }
 
-  inline void LogDequeueStatsMaster(EventType event_type, size_t frame_id,
-                                    size_t tsc_dequeue_start,
-                                    size_t tsc_dequeue_end) {
-    dequeue_stats_[dequeue_stats_id_].tsc_start_ = tsc_dequeue_start;
-    dequeue_stats_[dequeue_stats_id_].tsc_end_ = tsc_dequeue_end;
-    dequeue_stats_[dequeue_stats_id_].event_type_ = event_type;
-    dequeue_stats_id_++;
-  }
-
   inline void UpdateDequeueTscWorker(int tid, size_t frame_id,
                                      size_t dequeue_tsc,
                                      size_t valid_dequeue_tsc) {

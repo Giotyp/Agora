@@ -118,7 +118,8 @@ static unsigned int CheckCorrectnessUl(Config const* const cfg,
 }
 
 unsigned int CheckCorrectnessDl(Config const* const cfg,
-                                const arma::uvec& spatial_streams, size_t sched_id) {
+                                const arma::uvec& spatial_streams,
+                                size_t sched_id) {
   const size_t bs_ant_num = cfg->BsAntNum();
   const size_t ue_num = cfg->UeAntNum();
   const size_t num_data_syms = cfg->Frame().NumDLSyms();

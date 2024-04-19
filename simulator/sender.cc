@@ -80,7 +80,7 @@ Sender::Sender(Config* cfg, size_t socket_thread_num, size_t core_offset,
     InitUesFromFile();
   }
 
-  InitIqFromFilePath(std::string(TOSTRING(PROJECT_DIRECTORY)));
+  InitIqFromFilePath(kExperimentFilepath);
 
   task_ptok_ =
       static_cast<moodycamel::ProducerToken**>(Agora_memory::PaddedAlignedAlloc(
@@ -652,7 +652,7 @@ void Sender::InitIqFromFilePath(const std::string& filepath) {
   iq_data_temp.Calloc(packets_per_frame, (cfg_->SampsPerSymbol()) * 2,
                       Agora_memory::Alignment_t::kAlign64);
 
-  const std::string filename = kExperimentFilepath + kUlRxPrefix +
+  const std::string filename = filepath + kUlRxPrefix +
                                std::to_string(cfg_->OfdmCaNum()) + "_bsant" +
                                std::to_string(cfg_->BsAntNum()) + "_ueant" +
                                std::to_string(cfg_->UeAntNum()) + ".bin";

@@ -90,7 +90,6 @@ class Sender {
 
   // Get number of CPU ticks for a symbol given a frame index
   uint64_t GetTicksForFrame(size_t frame_id) const;
-  size_t GetMaxSymbolId() const;
 
   // Launch threads to run worker with thread IDs from tid_start to tid_end
   void CreateWorkerThreads(size_t num_workers);
