@@ -1,6 +1,7 @@
 #ifndef MAC_UTILS_H_
 #define MAC_UTILS_H_
 
+#include "comms-lib.h"
 #include "framestats.h"
 #include "ldpc_config.h"
 #include "modulation.h"
@@ -85,42 +86,35 @@ class MacUtils {
                                      : this->dl_mcs_index_;
   }
 
+  inline const size_t MaxPacketBytes(Direction dir) const {
+    size_t max_mod_bits = GetModOrderBits(kMaxMcsIndex);
+    size_t max_code_rate = GetCodeRate(kMaxMcsIndex);
+    size_t num_sc =
+        (dir == Direction::kUplink) ? ul_ofdm_data_num_ : dl_ofdm_data_num_;
+    return (static_cast<size_t>(num_sc * max_code_rate * max_mod_bits /
+                                1024.0) +
+            7) /
+           8;
+  }
   /// Get mac bits for this frame, symbol, user and code block ID
   inline int8_t* GetMacBits(Table<int8_t>& info_bits, Direction dir,
                             size_t frame_id, size_t symbol_id, size_t ue_id,
                             size_t cb_id) const {
-    size_t mac_bytes_perframe;
+    size_t mac_offset_perframe;
     size_t num_bytes_per_cb;
-    size_t mac_packet_length;
+    size_t max_packet_length;
     if (dir == Direction::kDownlink) {
-      mac_bytes_perframe = this->dl_mac_bytes_num_perframe_;
       num_bytes_per_cb = this->dl_num_bytes_per_cb_;
-      mac_packet_length = this->dl_mac_packet_length_;
+      max_packet_length = this->MaxPacketBytes(Direction::kDownlink);
+      mac_offset_perframe = this->dl_mac_packets_perframe_ * max_packet_length;
     } else {
-      mac_bytes_perframe = this->ul_mac_bytes_num_perframe_;
       num_bytes_per_cb = this->ul_num_bytes_per_cb_;
-      mac_packet_length = this->ul_mac_packet_length_;
+      max_packet_length = this->MaxPacketBytes(Direction::kUplink);
+      mac_offset_perframe = this->ul_mac_packets_perframe_ * max_packet_length;
     }
-    return &info_bits[ue_id][(frame_id % kFrameWnd) * mac_bytes_perframe +
-                             symbol_id * mac_packet_length +
+    return &info_bits[ue_id][(frame_id % kFrameWnd) * mac_offset_perframe +
+                             symbol_id * max_packet_length +
                              cb_id * num_bytes_per_cb];
-  }
-
-  /// Get info bits for this symbol, user and code block ID
-  inline int8_t* GetInfoBits(Table<int8_t>& info_bits, Direction dir,
-                             size_t symbol_id, size_t ue_id,
-                             size_t cb_id) const {
-    size_t num_bytes_per_cb;
-    size_t num_blocks_in_symbol;
-    if (dir == Direction::kDownlink) {
-      num_bytes_per_cb = this->dl_num_bytes_per_cb_;
-      num_blocks_in_symbol = this->dl_ldpc_config_.NumBlocksInSymbol();
-    } else {
-      num_bytes_per_cb = this->ul_num_bytes_per_cb_;
-      num_blocks_in_symbol = this->ul_ldpc_config_.NumBlocksInSymbol();
-    }
-    return &info_bits[symbol_id][Roundup<64>(num_bytes_per_cb) *
-                                 (num_blocks_in_symbol * ue_id + cb_id)];
   }
 
  private:

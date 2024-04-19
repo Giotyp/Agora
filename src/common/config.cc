@@ -14,6 +14,7 @@
 #include <utility>
 
 #include "comms-constants.inc"
+#include "comms-lib.h"
 #include "data_generator.h"
 #include "datatype_conversion.h"
 #include "fivegconfig.h"

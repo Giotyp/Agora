@@ -47,9 +47,9 @@ PhyUe::PhyUe(Config* config)
       demod_buffer_(kFrameWnd, config->Frame().NumDlDataSyms(),
                     config->UeAntNum(),
                     kMaxModType * Roundup<64>(config->GetOFDMDataNum())),
-      decoded_buffer_(kFrameWnd, config->Frame().NumDlDataSyms(),
-                      config->UeAntNum(),
-                      config->MaxPacketBytes(Direction::kDownlink)) {
+      decoded_buffer_(
+          kFrameWnd, config->Frame().NumDlDataSyms(), config->UeAntNum(),
+          config->MacParams().MaxPacketBytes(Direction::kDownlink)) {
   srand(time(nullptr));
   // TODO take into account the UeAntOffset to allow for multiple PhyUe
   // instances
@@ -858,14 +858,15 @@ void PhyUe::InitializeVarsFromCfg() {
 
 void PhyUe::InitializeUplinkBuffers() {
   // initialize ul data buffer
+  const size_t ul_data_syms_buffer_dim1 = ul_data_symbol_perframe_ * kFrameWnd;
   ul_bits_buffer_size_ =
-      kFrameWnd * config_->MacParams().MacBytesNumPerframe(Direction::kUplink);
+      ul_data_syms_buffer_dim1 *
+      config_->MacParams().MaxPacketBytes(Direction::kUplink);
   ul_bits_buffer_.Malloc(config_->UeAntNum(), ul_bits_buffer_size_,
                          Agora_memory::Alignment_t::kAlign64);
   ul_bits_buffer_status_.Calloc(config_->UeAntNum(), kFrameWnd,
                                 Agora_memory::Alignment_t::kAlign64);
 
-  const size_t ul_data_syms_buffer_dim1 = ul_data_symbol_perframe_ * kFrameWnd;
   const size_t encoded_buffer_dim2 =
       Roundup<64>(config_->OfdmDataNum()) * config_->UeAntNum();
 

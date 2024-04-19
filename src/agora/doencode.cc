@@ -16,13 +16,12 @@ static constexpr bool kPrintEncodedData = false;
 static constexpr bool kPrintModulatedData = false;
 
 DoEncode::DoEncode(Config* in_config, int in_tid, Direction dir,
-                   Table<int8_t>& in_raw_data_buffer, size_t in_buffer_rollover,
+                   Table<int8_t>& in_raw_data_buffer,
                    Table<int8_t>& in_mod_bits_buffer, MacScheduler* mac_sched,
                    Stats* in_stats_manager)
     : Doer(in_config, in_tid),
       dir_(dir),
       raw_data_buffer_(in_raw_data_buffer),
-      raw_buffer_rollover_(in_buffer_rollover),
       mod_bits_buffer_(in_mod_bits_buffer),
       mac_sched_(mac_sched),
       scrambler_(std::make_unique<AgoraScrambler::Scrambler>()) {
@@ -86,12 +85,9 @@ EventData DoEncode::Launch(size_t tag) {
         ue_id);
   }
 
-  ///\todo Make GetMacBits and GetInfoBits
-  /// universal with raw_buffer_rollover_ the parameter.
   // All cb's per symbol are included in 1 mac packet
   int8_t* tx_data_ptr = mac_sched_->Params().GetMacBits(
-      raw_data_buffer_, dir_, (frame_id % raw_buffer_rollover_),
-      data_symbol_idx, ue_id, cur_cb_id);
+      raw_data_buffer_, dir_, frame_id, data_symbol_idx, ue_id, cur_cb_id);
 
   if (kPrintRawMacData) {
     auto* pkt = reinterpret_cast<MacPacketPacked*>(tx_data_ptr);

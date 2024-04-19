@@ -491,6 +491,8 @@ void MacThreadClient::SendCodeblocksToPhy(EventData event) {
 
   const size_t num_mac_packets_per_frame =
       mac_sched_->Params().MacPacketsPerframe(Direction::kUplink);
+  const size_t max_packet_length =
+      cfg_->MacParams().MaxPacketBytes(Direction::kUplink);
   const size_t mac_packet_length =
       mac_sched_->Params().MacPacketLength(Direction::kUplink);
   const size_t mac_payload_length =
@@ -510,18 +512,18 @@ void MacThreadClient::SendCodeblocksToPhy(EventData event) {
   }
 
   const size_t dest_pkt_base =
-      (radio_buf_id * num_mac_packets_per_frame) * mac_packet_length;
+      (radio_buf_id * num_mac_packets_per_frame) * max_packet_length;
 
-  if (kEnableMac) {
-    // Copy from the packet rx buffer into ul_bits memory
-    for (size_t pkt_id = 0; pkt_id < num_mac_packets_per_frame; pkt_id++) {
-      const auto src_packet = mac_ring_.Pop(ue_id);
-      const size_t dest_pkt_offset = dest_pkt_base + pkt_id * mac_packet_length;
+  // Copy from the packet rx buffer into ul_bits memory
+  for (size_t pkt_id = 0; pkt_id < num_mac_packets_per_frame; pkt_id++) {
+    const size_t dest_pkt_offset = dest_pkt_base + pkt_id * max_packet_length;
+    if (kEnableMac) {
       auto* pkt = reinterpret_cast<MacPacketPacked*>(
           &(*client_.ul_bits_buffer_)[ue_id][dest_pkt_offset]);
       pkt->Set(frame_id, cfg_->Frame().GetULSymbol(pkt_id + num_pilot_symbols),
                ue_id, mac_payload_length);
 
+      const auto src_packet = mac_ring_.Pop(ue_id);
       pkt->LoadData(src_packet.Data());
       // Insert CRC
       pkt->Crc((uint16_t)(crc_obj_->CalculateCrc24(pkt->Data(),
@@ -555,11 +557,12 @@ void MacThreadClient::SendCodeblocksToPhy(EventData event) {
         std::fprintf(log_file_, "%s", ss.str().c_str());
         ss.str("");
       }
-    }  // end all packets
-  } else {
-    std::memmove(&(*client_.ul_bits_buffer_)[ue_id][dest_pkt_base],
-                 ul_mac_bytes_[ue_id], num_ul_mac_bytes_);
-  }
+    } else {
+      std::memmove(&(*client_.ul_bits_buffer_)[ue_id][dest_pkt_offset],
+                   ul_mac_bytes_[ue_id] + pkt_id * mac_packet_length,
+                   num_ul_mac_bytes_);
+    }
+  }  // end all packets
   (*client_.ul_bits_buffer_status_)[ue_id][radio_buf_id] = 1;
   EventData msg(EventType::kPacketFromMac,
                 rx_mac_tag_t(frame_id, ue_id, radio_buf_id).tag_);

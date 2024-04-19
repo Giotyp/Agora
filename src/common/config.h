@@ -256,16 +256,6 @@ class Config {
     return dir == Direction::kUplink ? this->ul_mcs_params_
                                      : this->dl_mcs_params_;
   }
-  inline const size_t MaxPacketBytes(Direction dir) const {
-    size_t max_mod_bits = GetModOrderBits(kMaxMcsIndex);
-    size_t max_code_rate = GetCodeRate(kMaxMcsIndex);
-    size_t num_sc =
-        (dir == Direction::kUplink) ? ofdm_data_num_ : this->GetOFDMDataNum();
-    return (static_cast<size_t>(num_sc * max_code_rate * max_mod_bits /
-                                1024.0) +
-            7) /
-           8;
-  }
   inline const MacUtils& MacParams() const { return this->mac_params_; }
 
   inline std::string UeServerAddr() const { return this->ue_server_addr_; }
