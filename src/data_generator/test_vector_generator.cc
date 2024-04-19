@@ -99,9 +99,9 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
         sched_ue_map[i * cfg->UeAntNum()] = 1;
         ue_sched_id = 1;
       }
-      if (sched_ue_set.size() == 0)
+      if (sched_ue_set.empty()) {
         sched_ue_set.push_back(ue_sched_id);
-      else {
+      } else {
         std::vector<size_t>::iterator it;
         for (it = sched_ue_set.begin(); it < sched_ue_set.end(); it++) {
           if (ue_sched_id == *it) {  // dont's push this to keep vector unique
@@ -259,7 +259,7 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
         }
       }
       for (size_t i = 0; i < cfg->UeNum(); i++) {
-        const std::string filename_input =
+        const std::string uplink_filename =
             directory + kUlModDataPrefix + cfg->Modulation(Direction::kUplink) +
             "_" + std::to_string(cfg->OfdmDataNum()) + "_" +
             std::to_string(cfg->OfdmCaNum()) + "_" +
@@ -267,8 +267,9 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
             std::to_string(cfg->Frame().NumULSyms()) + "_" +
             std::to_string(kOutputFrameNum) + "_" + cfg->UeChannel() + "_" +
             std::to_string(i) + ".bin";
-        AGORA_LOG_INFO("Saving uplink sc bits to %s\n", filename_input.c_str());
-        auto* fp_tx_b = std::fopen(filename_input.c_str(), "wb");
+        AGORA_LOG_INFO("Saving uplink sc bits to %s\n",
+                       uplink_filename.c_str());
+        auto* fp_tx_b = std::fopen(uplink_filename.c_str(), "wb");
         if (fp_tx_b == nullptr) {
           throw std::runtime_error(
               "DataGenerator: Failed to create ul sc bits file");
@@ -745,14 +746,15 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
         }
         if (kPrintDebugCSI) {
           std::printf("CSI \n");
-          for (size_t j = 0; j < cfg->UeAntNum() * cfg->BsAntNum(); j++) {
-            std::printf("%.3f+%.3fi ", csi_matrices[cfg->OfdmDataStart()][j].re,
-                        csi_matrices[cfg->OfdmDataStart()][j].im);
+          for (size_t ant = 0; ant < cfg->UeAntNum() * cfg->BsAntNum(); ant++) {
+            std::printf("%.3f+%.3fi ",
+                        csi_matrices[cfg->OfdmDataStart()][ant].re,
+                        csi_matrices[cfg->OfdmDataStart()][ant].im);
           }
           std::printf("\nprecoder \n");
-          for (size_t j = 0; j < cfg->UeAntNum() * cfg->BsAntNum(); j++) {
-            std::printf("%.3f+%.3fi ", precoder[cfg->OfdmDataStart()][j].re,
-                        precoder[cfg->OfdmDataStart()][j].im);
+          for (size_t ant = 0; ant < cfg->UeAntNum() * cfg->BsAntNum(); ant++) {
+            std::printf("%.3f+%.3fi ", precoder[cfg->OfdmDataStart()][ant].re,
+                        precoder[cfg->OfdmDataStart()][ant].im);
           }
           std::printf("\n");
         }
