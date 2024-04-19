@@ -567,8 +567,8 @@ async fn main() -> io::Result<()> {
                 let gamma = 0.9;  // discount factor
                 let epsilon = 0.1;  // exploration-exploitation trade-off
         
-                let num_episodes = 10; // Episodes count for training
-                let terminate_count = 100; // Epochs count to terminate training when not converging
+                let num_episodes = 1000; // Episodes count for training
+                let terminate_count = 1000; // Epochs count to terminate training when not converging
 
                 let consecutive_epochs_exit_count = 5; // Number of consecutive epochs with same state and reward to treat the training converged. Applicable when the target reward is the least negative.
                 let alternative_epochs_exit_count = 5; // Number of alternative epochs with same state and reward to treat the training converged. Applicable when the target reward is the least negative.
@@ -633,15 +633,7 @@ async fn main() -> io::Result<()> {
                         let mut epochs = 0;
                         let mut record_rewards = vec![0; record_count as usize];
                         let mut record_states = vec![0; record_count as usize];
-                        let mut yet_yet_previous_reward = 0;
-                        let mut yet_previous_reward = 0;
-                        let mut previous_reward = 0;
-                        let mut cont_epochs_count_in_same_state_reward = 1;
-                        let mut alternating_epochs_count = 3; // Count initialized with 3 since two alternative counts would have already reached
                         let mut agora_cores;
-                        let mut yet_yet_previous_state;
-                        let mut yet_previous_state;
-                        let mut previous_state;
                         let mut next_state;
                         let mut reward = -40;
                         let mut action;
@@ -707,9 +699,6 @@ async fn main() -> io::Result<()> {
                         let reset_cores_rl = agora_env.agora_to_rl_index_mapping(reset_cores as u16);
                         let reset_users_rl = agora_env.agora_to_rl_index_mapping(reset_users as u16);
                         state = agora_env.compute_state(reset_cores_rl as u16, reset_users_rl as u16, reset_latency as u16);
-                        previous_state = state;
-                        yet_previous_state = state;
-                        yet_yet_previous_state = state;
 
                         while done == false {
                             // Count epochs
@@ -754,38 +743,15 @@ async fn main() -> io::Result<()> {
                                 println!("TSC: {:?}, step_output: next_state {}, reward {}, done {}\n", current_tsc, next_state, reward, done);
                             }
 
-                            // println!("BEFORE UPDATE:");
-                            // for count in 0..=(record_count - 1) {
-                            //     println!("record_states[count] {}, record_rewards[count] {}, count {}\n", record_states[count as usize], record_rewards[count as usize], count);
-                            // }
+                            // Record current state and reward
                             for count in 1..=(record_count - 1) {
                                 record_states[count as usize - 1] = record_states[count as usize];
                                 record_rewards[count as usize - 1] = record_rewards[count as usize];
                             }
                             record_states[record_count as usize - 1] = state;
                             record_rewards[record_count as usize - 1] = reward;
-                            // println!("AFTER UPDATE:");
-                            // for count in 0..=(record_count - 1) {
-                            //     println!("record_states[count] {}, record_rewards[count] {}, count {}\n", record_states[count as usize], record_rewards[count as usize], count);
-                            // }
 
-                            // Check consecutive epochs, states and rewards condition to exit training
-                            if record_states[record_count as usize - 1] == record_states[record_count as usize - 2] && record_rewards[record_count as usize - 1] == record_rewards[record_count as usize - 2] {
-                                cont_epochs_count_in_same_state_reward += 1;
-                                println!("cont_epochs_count_in_same_state_reward: {}", cont_epochs_count_in_same_state_reward);
-                                if cont_epochs_count_in_same_state_reward == consecutive_epochs_exit_count {
-                                    done = true;
-                                    for count in 0..=(record_count - 1) {
-                                        println!("record_states[count] {}, record_rewards[count] {}, count {}\n", record_states[count as usize], record_rewards[count as usize], count);
-                                    }
-                                    println!("Terminating training for Episode {} based on continous count of {} Epochs with same state and reward ...\n",
-                                        episode, cont_epochs_count_in_same_state_reward);
-                                }
-                            } else {
-                                cont_epochs_count_in_same_state_reward = 1;
-                            // println!("Countinous epochs count is rest to {} ...\n", cont_epochs_count_in_same_state_reward);
-                            }
-
+                            // Initialize count and mask for repetition checking
                             let mut repetition_count = vec![1; record_count as usize];
                             let mut repetition_mask = vec![1; record_count as usize];
                             for count in 0..record_count {
@@ -794,15 +760,12 @@ async fn main() -> io::Result<()> {
                                     repetition_mask[count as usize] = 0;
                                 }
                             }
-                            // for count in 0..record_count {
-                            //     println!("repetition_count: {}, repetition_mask: {}, count: {}", repetition_count[count], repetition_mask[count], count);
-                            // }
-                            // Counting same state and reward occurences
+
+                            // Counting state and reward occurences
                             for count1 in 1..=record_count {
                                 for count2 in 1..=(record_count - count1) {
                                     if repetition_mask[record_count as usize - count1 as usize] == 1 {
                                         if record_states[record_count as usize - count1] == record_states[record_count as usize - count1 as usize - count2 as usize] && record_rewards[record_count as usize - count1] == record_rewards[record_count as usize - count1 as usize - count2 as usize] {
-                                            // println!("count1: {}, count2: {}", count1, count2);
                                             repetition_count[record_count as usize - count1] = repetition_count[record_count as usize - count1] + 1;
                                             repetition_count[record_count as usize - count1 as usize - count2 as usize] = 0;
                                             repetition_mask[record_count as usize - count1 as usize - count2 as usize] = 0;
@@ -810,16 +773,11 @@ async fn main() -> io::Result<()> {
                                     }
                                 }
                             }
-                            // for count in 0..record_count {
-                            //     println!("repetition_count: {}, repetition_mask: {}, count: {}", repetition_count[count], repetition_mask[count], count);
-                            // }
 
                             // Sorting the elements of repetition_count in descending order
                             repetition_count.sort_by(|a, b| b.cmp(a));
-                            // for count in 0..record_count {
-                            //     println!("sorted: repetition_count: {}, count: {}", repetition_count[count], count);
-                            // }
 
+                            // Check continuous epochs, states and rewards condition to exit training
                             if repetition_count[0 as usize] == consecutive_epochs_exit_count {
                                 done = true;
                                 for count in 0..=(record_count - 1) {
@@ -829,6 +787,7 @@ async fn main() -> io::Result<()> {
                                     episode, consecutive_epochs_exit_count);
                             }
 
+                            // Check alternating epochs, states and rewards condition to exit training
                             if repetition_count[0 as usize] == alternating_epochs1_count && repetition_count[1 as usize] == alternating_epochs2_count {
                                 done = true;
                                 for count in 0..=(record_count - 1) {
@@ -836,28 +795,6 @@ async fn main() -> io::Result<()> {
                                 }
                                 println!("Terminating training for Episode {} based on alternating count of {} Epochs with alternate state and reward (need not be ordered) ...\n",
                                     episode, alternative_epochs_exit_count);
-                            }
-
-                            // Check alternating epochs, states and rewards condition to exit training
-                            if (state == yet_previous_state && reward == yet_previous_reward) && (previous_state == yet_yet_previous_state && previous_reward == yet_yet_previous_reward) {
-                                alternating_epochs_count += 1;
-                                println!("alternating_epochs_count: {}", alternating_epochs_count);
-                                if alternating_epochs_count == alternative_epochs_exit_count {
-                                    done = true;
-                                    println!("yet_yet_previous_state: {}", yet_yet_previous_state);
-                                    println!("yet_previous_state: {}", yet_previous_state);
-                                    println!("previous_state: {}", previous_state);
-                                    println!("state: {}", state);
-                                    println!("yet_yet_previous_reward: {}", yet_yet_previous_reward);
-                                    println!("yet_previous_reward: {}", yet_previous_reward);
-                                    println!("previous_reward: {}", previous_reward);
-                                    println!("reward: {}", reward);
-                                    println!("Terminating training for Episode {} based on alternating count of {} Epochs with alternate state and reward ...\n",
-                                        episode, alternating_epochs_count);
-                                }                                
-                            } else {
-                                alternating_epochs_count = 3;
-                                // println!("Alternating epochs count is rest to {} ...\n", alternating_epochs_count);
                             }
     
                             let users_after_action = agora_env.get_curr_users(next_state);
@@ -879,16 +816,8 @@ async fn main() -> io::Result<()> {
                             }
     
                             // Update state
-                            yet_yet_previous_state = yet_previous_state;
-                            yet_previous_state = previous_state;
-                            previous_state = state;
                             state = next_state;
 
-                            // Update reward
-                            yet_yet_previous_reward = yet_previous_reward;
-                            yet_previous_reward = previous_reward;
-                            previous_reward = reward;
-    
                             if epochs == terminate_count {
                                 println!("Terminating training for Episode {} based on terminal count of {} Epochs ...\n",
                                     episode, terminate_count);
@@ -933,15 +862,9 @@ async fn main() -> io::Result<()> {
                     let mut rng = rand::thread_rng();
                     let reset_cores = rng.gen_range((num_min_cores as u16)..(num_max_cores as u16));
                     let mut epochs = 0;
-                    let mut yet_yet_previous_reward = 0;
-                    let mut yet_previous_reward = 0;
-                    let mut previous_reward = 0;
-                    let mut cont_epochs_count_in_same_state_reward = 1;
-                    let mut alternating_epochs_count = 3; // Count initialized with 3 since two alternative counts would have been already reached
+                    let mut record_rewards = vec![0; record_count as usize];
+                    let mut record_states = vec![0; record_count as usize];
                     let mut agora_cores;
-                    let mut yet_yet_previous_state;
-                    let mut yet_previous_state;
-                    let mut previous_state;
                     let mut next_state;
                     let mut reward = -40;
                     let mut action;
@@ -1007,9 +930,6 @@ async fn main() -> io::Result<()> {
                     let reset_cores_rl = agora_env.agora_to_rl_index_mapping(reset_cores as u16);
                     let reset_users_rl = agora_env.agora_to_rl_index_mapping(reset_users as u16);
                     state = agora_env.compute_state(reset_cores_rl as u16, reset_users_rl as u16, reset_latency as u16);
-                    previous_state = state;
-                    yet_previous_state = state;
-                    yet_yet_previous_state = state;
 
                     while done == false {
                         // Count epochs
@@ -1048,57 +968,63 @@ async fn main() -> io::Result<()> {
                             println!("step_output: next_state {}, reward {}, done {}\n", next_state, reward, done);    
                         }
 
-                        // Check consecutive epochs, states and rewards condition to exit testing
-                        if state == previous_state && reward == previous_reward {
-                            cont_epochs_count_in_same_state_reward += 1;
-                            if cont_epochs_count_in_same_state_reward == consecutive_epochs_exit_count {
-                                done = true;
-                                println!("cont_epochs_count_in_same_state_reward: {}", cont_epochs_count_in_same_state_reward);
-                                println!("state: {}", state);
-                                println!("previous_state: {}", previous_state);
-                                println!("reward: {}", reward);
-                                println!("previous_reward: {}", previous_reward);
-                                println!("Terminating training for based on continous count of {} Epochs with same state and reward ...\n",
-                                    cont_epochs_count_in_same_state_reward);
+                        // Record current state and reward
+                        for count in 1..=(record_count - 1) {
+                            record_states[count as usize - 1] = record_states[count as usize];
+                            record_rewards[count as usize - 1] = record_rewards[count as usize];
+                        }
+                        record_states[record_count as usize - 1] = state;
+                        record_rewards[record_count as usize - 1] = reward;
+
+                        // Initialize count and mask for repetition checking
+                        let mut repetition_count = vec![1; record_count as usize];
+                        let mut repetition_mask = vec![1; record_count as usize];
+                        for count in 0..record_count {
+                            if record_states[count as usize] == 0 {
+                                repetition_count[count as usize] = 0;
+                                repetition_mask[count as usize] = 0;
                             }
-                        } else {
-                            cont_epochs_count_in_same_state_reward = 1;
-                            // println!("Countinous epochs count is rest to {} ...\n", cont_epochs_count_in_same_state_reward);
                         }
 
-                        // Check alternating epochs, states and rewards condition to exit testing
-                        if (state == yet_previous_state && reward == yet_previous_reward) && (previous_state == yet_yet_previous_state && previous_reward == yet_yet_previous_reward) {
-                            alternating_epochs_count += 1;
-                            if alternating_epochs_count == alternative_epochs_exit_count {
-                                done = true;
-                                println!("alternating_epochs_count: {}", alternating_epochs_count);
-                                println!("yet_yet_previous_state: {}", yet_yet_previous_state);
-                                println!("yet_previous_state: {}", yet_previous_state);
-                                println!("previous_state: {}", previous_state);
-                                println!("state: {}", state);
-                                println!("yet_yet_previous_reward: {}", yet_yet_previous_reward);
-                                println!("yet_previous_reward: {}", yet_previous_reward);
-                                println!("previous_reward: {}", previous_reward);
-                                println!("reward: {}", reward);
-                                println!("Terminating testing based on alternating count of {} Epochs ...\n",
-                                    alternating_epochs_count);
-                            }                                
-                        } else {
-                            alternating_epochs_count = 3;
-                            // println!("Alternating epochs count is rest to {} ...\n", alternating_epochs_count);
+                        // Counting state and reward occurences
+                        for count1 in 1..=record_count {
+                            for count2 in 1..=(record_count - count1) {
+                                if repetition_mask[record_count as usize - count1 as usize] == 1 {
+                                    if record_states[record_count as usize - count1] == record_states[record_count as usize - count1 as usize - count2 as usize] && record_rewards[record_count as usize - count1] == record_rewards[record_count as usize - count1 as usize - count2 as usize] {
+                                        repetition_count[record_count as usize - count1] = repetition_count[record_count as usize - count1] + 1;
+                                        repetition_count[record_count as usize - count1 as usize - count2 as usize] = 0;
+                                        repetition_mask[record_count as usize - count1 as usize - count2 as usize] = 0;
+                                    }
+                                }
+                            }
+                        }
+
+                        // Sorting the elements of repetition_count in descending order
+                        repetition_count.sort_by(|a, b| b.cmp(a));
+
+                        // Check continuous epochs, states and rewards condition to exit training
+                        if repetition_count[0 as usize] == consecutive_epochs_exit_count {
+                            done = true;
+                            for count in 0..=(record_count - 1) {
+                                println!("record_states[count] {}, record_rewards[count] {}, count {}\n", record_states[count as usize], record_rewards[count as usize], count);
+                            }
+                            println!("Terminating training based on continous count of {} Epochs with same state and reward ...\n",
+                                consecutive_epochs_exit_count);
+                        }
+
+                        // Check alternating epochs, states and rewards condition to exit training
+                        if repetition_count[0 as usize] == alternating_epochs1_count && repetition_count[1 as usize] == alternating_epochs2_count {
+                            done = true;
+                            for count in 0..=(record_count - 1) {
+                                println!("record_states[count] {}, record_rewards[count] {}, count {}\n", record_states[count as usize], record_rewards[count as usize], count);
+                            }
+                            println!("Terminating training based on alternating count of {} Epochs with alternate state and reward (need not be ordered) ...\n",
+                                alternative_epochs_exit_count);
                         }
 
                         // Update state
-                        yet_yet_previous_state = yet_previous_state;
-                        yet_previous_state = previous_state;
-                        previous_state = state;
                         state = next_state;
 
-                        // Update reward
-                        yet_yet_previous_reward = yet_previous_reward;
-                        yet_previous_reward = previous_reward;
-                        previous_reward = reward;
-    
                         if epochs == terminate_count {
                             println!("Terminating testing based on terminal count of {} Epochs ...\n", terminate_count);
                             done = true;
