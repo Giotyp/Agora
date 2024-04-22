@@ -115,9 +115,6 @@ class Config {
   inline bool ImbalanceCalEn() const { return this->imbalance_cal_en_; }
   inline size_t BeamformingAlgo() const { return this->beamforming_algo_; }
   inline std::string Beamforming() const { return this->beamforming_str_; }
-  inline void UpdateSpatialStreamsNum(size_t num_spatial_streams) {
-    this->num_spatial_streams_ = num_spatial_streams;
-  }
   inline size_t SpatialStreamsNum() const { return this->num_spatial_streams_; }
   inline bool ExternalRefNode(size_t id) const {
     return this->external_ref_node_.at(id);
@@ -663,15 +660,6 @@ class Config {
           event.event_type_;
       enqueue_stats_id_.at(symbol_id)++;
     }
-  }
-
-  inline void LogDequeueStatsMaster(EventType event_type, size_t frame_id,
-                                    size_t tsc_dequeue_start,
-                                    size_t tsc_dequeue_end) {
-    dequeue_stats_[dequeue_stats_id_].tsc_start_ = tsc_dequeue_start;
-    dequeue_stats_[dequeue_stats_id_].tsc_end_ = tsc_dequeue_end;
-    dequeue_stats_[dequeue_stats_id_].event_type_ = event_type;
-    dequeue_stats_id_++;
   }
 
   inline void UpdateDequeueTscWorker(int tid, size_t frame_id,
