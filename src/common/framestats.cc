@@ -185,3 +185,7 @@ size_t FrameStats::GetPilotSymbolIdx(size_t symbol_number) const {
 size_t FrameStats::GetDLCalSymbolIdx(size_t symbol_number) const {
   return FrameStats::GetSymbolIdx(this->dl_cal_symbols_, symbol_number);
 }
+
+SymbolType FrameStats::GetSymbolType(size_t symbol_id) const {
+  return kSymbolMap.at(this->FrameIdentifier().at(symbol_id));
+}

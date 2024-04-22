@@ -17,7 +17,9 @@
 
 #include "armadillo"
 #include "common_typedef_sdk.h"
+#include "concurrent_queue_wrapper.h"
 #include "framestats.h"
+#include "gettime.h"
 #include "ldpc_config.h"
 #include "memory_manage.h"
 #include "nlohmann/json.hpp"
@@ -40,6 +42,7 @@ class Config {
   inline size_t BfAntNum() const { return this->bf_ant_num_; }
   inline size_t UeNum() const { return this->ue_num_; }
   inline size_t UeAntNum() const { return this->ue_ant_num_; }
+  inline bool AdaptUes() const { return this->adapt_ues_; }
   inline size_t UeAntOffset() const { return this->ue_ant_offset_; }
   inline size_t UeAntTotal() const { return this->ue_ant_total_; }
 
@@ -124,7 +127,7 @@ class Config {
   // Returns antenna number for rec cal dl symbol
   // Assumes that there are the same number of dl cal symbols in each frame
   inline size_t RecipCalDlAnt(size_t frame_id, size_t dl_cal_symbol) const {
-    assert(GetSymbolType(dl_cal_symbol) == SymbolType::kCalDL);
+    assert(this->Frame().GetSymbolType(dl_cal_symbol) == SymbolType::kCalDL);
     const size_t dl_cal_offset = (frame_id * frame_.NumDLCalSyms()) +
                                  frame_.GetDLCalSymbolIdx(dl_cal_symbol);
 
@@ -293,6 +296,9 @@ class Config {
   inline const LDPCconfig& BcLdpcConfig() const {
     return dl_bcast_ldpc_config_;
   }
+  inline size_t BcModOrderBits() const {
+    return this->dl_bcast_mod_order_bits_;
+  }
   inline Table<complex_float>& ModTable(Direction dir) {
     return dir == Direction::kUplink ? this->ul_mod_table_
                                      : this->dl_mod_table_;
@@ -323,6 +329,7 @@ class Config {
   inline int UeRruPort() const { return this->ue_rru_port_; }
 
   inline size_t FramesToTest() const { return this->frames_to_test_; }
+  inline size_t FrameToProfile() const { return this->frame_to_profile_; }
   inline float NoiseLevel() const { return this->noise_level_; }
 
   inline bool FreqDomainChannel() const { return this->freq_domain_channel_; }
@@ -378,7 +385,7 @@ class Config {
 
   inline const std::vector<uint32_t>& Pilot() const { return this->pilot_; };
   inline const std::vector<uint32_t>& Beacon() const { return this->beacon_; };
-  // inline const complex_float *pilots (void ) const { return this->pilots_; };
+  inline const complex_float* Pilots() const { return this->pilots_; };
   inline const complex_float* PilotsSgn() const { return this->pilots_sgn_; };
   inline const std::vector<std::complex<float>>& CommonPilot() const {
     return this->common_pilot_;
@@ -429,29 +436,12 @@ class Config {
 
   // Public functions
   void GenPilots();
-  void GenData();
-  void GenBroadcastSlots(std::vector<std::complex<int16_t>*>& bcast_iq_samps,
-                         std::vector<size_t> ctrl_msg);
-  size_t DecodeBroadcastSlots(const int16_t* const bcast_iq_samps);
+  void LoadUplinkData();
+  void LoadDownlinkData();
+  void LoadTestVectors();
   void UpdateUlMCS(const nlohmann::json& ul_mcs_params);
   void UpdateDlMCS(const nlohmann::json& dl_mcs_params);
   void UpdateCtrlMCS();
-
-  /// TODO document and review
-  size_t GetSymbolId(size_t input_id) const;
-
-  bool IsBeacon(size_t /*frame_id*/, size_t /*symbol_id*/) const;
-  bool IsPilot(size_t /*unused*/, size_t /*symbol_id*/) const;
-  bool IsDlPilot(size_t /*unused*/, size_t /*symbol_id*/) const;
-  bool IsCalDlPilot(size_t /*unused*/, size_t /*symbol_id*/) const;
-  bool IsCalUlPilot(size_t /*unused*/, size_t /*symbol_id*/) const;
-  bool IsDownlink(size_t /*frame_id*/, size_t /*symbol_id*/) const;
-  bool IsDownlinkBroadcast(size_t /*frame_id*/, size_t /*symbol_id*/) const;
-  bool IsUplink(size_t /*unused*/, size_t /*symbol_id*/) const;
-
-  /* Public functions that do not meet coding standard format */
-  /// Return the symbol type of this symbol in this frame
-  SymbolType GetSymbolType(size_t symbol_id) const;
 
   /// Return total number of data symbols of all frames in a buffer
   /// that holds data of kFrameWnd frames
@@ -462,18 +452,36 @@ class Config {
   /// Return total number of uplink data symbols of all frames in a buffer
   /// that holds data of kFrameWnd frames
   inline size_t GetTotalDataSymbolIdxUl(size_t frame_id,
-                                        size_t symbol_idx_ul) const {
+                                        size_t data_symbol_idx_ul) const {
+    return ((frame_id % kFrameWnd) * this->frame_.NumUlDataSyms() +
+            data_symbol_idx_ul);
+  }
+
+  /// Return total number of uplink data symbols of all frames in a buffer
+  /// that holds data of kFrameWnd frames
+  inline size_t GetTotalSymbolIdxUl(size_t frame_id,
+                                    size_t symbol_idx_ul) const {
     return ((frame_id % kFrameWnd) * this->frame_.NumULSyms() + symbol_idx_ul);
   }
 
   /// Return total number of downlink data symbols of all frames in a buffer
   /// that holds data of kFrameWnd frames
   inline size_t GetTotalDataSymbolIdxDl(size_t frame_id,
-                                        size_t symbol_idx_dl) const {
+                                        size_t data_symbol_idx_dl) const {
+    return ((frame_id % kFrameWnd) * this->frame_.NumDlDataSyms() +
+            data_symbol_idx_dl);
+  }
+
+  /// Return total number of downlink data and pilot symbols of all frames in a buffer
+  /// that holds data of kFrameWnd frames
+  inline size_t GetTotalSymbolIdxDl(size_t frame_id,
+                                    size_t symbol_idx_dl) const {
     return ((frame_id % kFrameWnd) * this->frame_.NumDLSyms() + symbol_idx_dl);
   }
 
-  inline size_t GetTotalSymbolIdxDl(size_t frame_id, size_t symbol_id) {
+  /// Return total number of downlink data, pilot, and broadcast symbols of all frames
+  /// in a buffer that holds data of kFrameWnd frames
+  inline size_t GetTotalSymbolIdxDlBcast(size_t frame_id, size_t symbol_id) {
     const size_t symbol_idx_dl =
         symbol_id < this->frame_.GetDLSymbol(0)
             ? this->frame_.GetDLControlSymbolIdx(symbol_id)
@@ -484,41 +492,9 @@ class Config {
            symbol_idx_dl;
   }
 
-  //Returns Beacon+Dl symbol index
-  inline size_t GetBeaconDlIdx(size_t symbol_id) const {
-    size_t symbol_idx = SIZE_MAX;
-    const auto type = GetSymbolType(symbol_id);
-    if (type == SymbolType::kBeacon) {
-      symbol_idx = Frame().GetBeaconSymbolIdx(symbol_id);
-    } else if (type == SymbolType::kCalDL) {
-      symbol_idx =
-          Frame().GetDLCalSymbolIdx(symbol_id) + Frame().NumBeaconSyms();
-    } else if (type == SymbolType::kControl) {
-      symbol_idx = Frame().GetDLControlSymbolIdx(symbol_id) +
-                   Frame().NumBeaconSyms() + Frame().NumDLCalSyms();
-    } else if (type == SymbolType::kDL) {
-      symbol_idx = Frame().GetDLSymbolIdx(symbol_id) +
-                   Frame().NumDlBcastSyms() + Frame().NumDLCalSyms();
-    } else {
-      throw std::runtime_error("Invalid BS Beacon or DL symbol id " +
-                               std::to_string(symbol_id));
-    }
-    return symbol_idx;
-  }
-
-  //Returns Pilot+Ul symbol index
-  inline size_t GetPilotUlIdx(size_t symbol_id) const {
-    size_t symbol_idx = SIZE_MAX;
-    const auto type = GetSymbolType(symbol_id);
-    if (type == SymbolType::kPilot) {
-      symbol_idx = Frame().GetPilotSymbolIdx(symbol_id);
-    } else if (type == SymbolType::kUL) {
-      symbol_idx = Frame().GetULSymbolIdx(symbol_id) + Frame().NumPilotSyms();
-    } else {
-      throw std::runtime_error("Invalid Ue Pilot or UL symbol id " +
-                               std::to_string(symbol_id));
-    }
-    return symbol_idx;
+  /// Return the symbol duration in seconds
+  inline double GetSymbolDurationSec() const {
+    return (this->samps_per_symbol_ / this->rate_);
   }
 
   /// Return the frame duration in seconds
@@ -564,7 +540,7 @@ class Config {
       num_bytes_per_cb = this->dl_num_bytes_per_cb_;
       mac_packet_length = this->dl_mac_packet_length_;
     } else {
-      mac_bytes_perframe = ul_mac_bytes_num_perframe_;
+      mac_bytes_perframe = this->ul_mac_bytes_num_perframe_;
       num_bytes_per_cb = this->ul_num_bytes_per_cb_;
       mac_packet_length = this->ul_mac_packet_length_;
     }
@@ -643,6 +619,115 @@ class Config {
     return ul_tx_f_data_files_;
   }
 
+  inline void TryEnqueueLogStatsMaster(
+      moodycamel::ConcurrentQueue<EventData>* mc_queue,
+      moodycamel::ProducerToken* producer_token, const EventData& event,
+      size_t frame_id, size_t symbol_id) {
+    size_t enqueue_start_tsc = 0;
+    size_t enqueue_end_tsc = 0;
+    if (frame_id == this->frame_to_profile_) {
+      enqueue_start_tsc = GetTime::WorkerRdtsc();
+    }
+    TryEnqueueFallback(mc_queue, producer_token, event);
+    if (frame_id == this->frame_to_profile_) {
+      enqueue_end_tsc = GetTime::WorkerRdtsc();
+      enqueue_stats_[symbol_id][enqueue_stats_id_.at(symbol_id)].tsc_start_ =
+          enqueue_start_tsc;
+      enqueue_stats_[symbol_id][enqueue_stats_id_.at(symbol_id)].tsc_end_ =
+          enqueue_end_tsc;
+      enqueue_stats_[symbol_id][enqueue_stats_id_.at(symbol_id)].event_type_ =
+          event.event_type_;
+      enqueue_stats_id_.at(symbol_id)++;
+    }
+  }
+
+  inline void TryEnqueueLogStatsMaster(
+      moodycamel::ConcurrentQueue<EventData>* mc_queue, const EventData& event,
+      size_t frame_id, size_t symbol_id) {
+    size_t enqueue_start_tsc = 0;
+    size_t enqueue_end_tsc = 0;
+    if (frame_id == this->frame_to_profile_) {
+      enqueue_start_tsc = GetTime::WorkerRdtsc();
+    }
+    TryEnqueueFallback(mc_queue, event);
+    if (frame_id == this->frame_to_profile_) {
+      enqueue_end_tsc = GetTime::WorkerRdtsc();
+      enqueue_stats_[symbol_id][enqueue_stats_id_.at(symbol_id)].tsc_start_ =
+          enqueue_start_tsc;
+      enqueue_stats_[symbol_id][enqueue_stats_id_.at(symbol_id)].tsc_end_ =
+          enqueue_end_tsc;
+      enqueue_stats_[symbol_id][enqueue_stats_id_.at(symbol_id)].event_type_ =
+          event.event_type_;
+      enqueue_stats_id_.at(symbol_id)++;
+    }
+  }
+
+  inline void UpdateDequeueTscWorker(int tid, size_t frame_id,
+                                     size_t dequeue_tsc,
+                                     size_t valid_dequeue_tsc) {
+    total_worker_dequeue_tsc_[tid][frame_id] += dequeue_tsc;
+    total_worker_valid_dequeue_tsc_[tid][frame_id] += valid_dequeue_tsc;
+  }
+
+  inline void UpdateEnqueueTscWorker(int tid, size_t frame_id,
+                                     size_t enqueue_tsc) {
+    total_worker_enqueue_tsc_[tid][frame_id] += enqueue_tsc;
+    worker_num_valid_enqueue_[tid][frame_id]++;
+  }
+
+  inline void LogEnqueueStatsWorker(int tid, size_t symbol_id, size_t start_tsc,
+                                    size_t end_tsc, EventType event_type) {
+    size_t id = worker_enqueue_stats_id_[tid][symbol_id];
+    worker_enqueue_stats_[tid][symbol_id][id].tsc_start_ = start_tsc;
+    worker_enqueue_stats_[tid][symbol_id][id].tsc_end_ = end_tsc;
+    worker_enqueue_stats_[tid][symbol_id][id].event_type_ = event_type;
+    worker_enqueue_stats_id_[tid][symbol_id]++;
+  }
+
+  inline void LogDequeueStatsWorker(int tid, size_t symbol_id, size_t start_tsc,
+                                    size_t end_tsc, EventType event_type) {
+    size_t id = worker_dequeue_stats_id_[tid][symbol_id];
+    worker_dequeue_stats_[tid][symbol_id][id].tsc_start_ = start_tsc;
+    worker_dequeue_stats_[tid][symbol_id][id].tsc_end_ = end_tsc;
+    worker_dequeue_stats_[tid][symbol_id][id].event_type_ = event_type;
+    worker_dequeue_stats_id_[tid][symbol_id]++;
+  }
+
+  // Task enqueue/dequeue start and end timestamps and task type
+  struct QueueTsStat {
+    EventType event_type_;
+    size_t tsc_start_ = 0;  // Unit = TSC cycles
+    size_t tsc_end_ = 0;    // Unit = TSC cycles
+  };
+
+  std::array<std::array<QueueTsStat, kMaxLoggingEventsMaster>, kMaxSymbols>
+      enqueue_stats_;
+  std::array<QueueTsStat, kMaxLoggingEventsMaster> dequeue_stats_;
+  std::array<size_t, kMaxSymbols> enqueue_stats_id_ = {};
+  size_t dequeue_stats_id_ = 0;
+
+  std::array<std::array<size_t, kNumStatsFrames>, kMaxThreads>
+      total_worker_dequeue_tsc_ = {};
+  std::array<std::array<size_t, kNumStatsFrames>, kMaxThreads>
+      total_worker_enqueue_tsc_ = {};
+  std::array<std::array<size_t, kNumStatsFrames>, kMaxThreads>
+      total_worker_valid_dequeue_tsc_ = {};
+  std::array<std::array<size_t, kNumStatsFrames>, kMaxThreads>
+      worker_num_valid_enqueue_ = {};
+
+  std::array<
+      std::array<std::array<QueueTsStat, kMaxLoggingEventsWorker>, kMaxSymbols>,
+      kMaxThreads>
+      worker_enqueue_stats_;
+  std::array<
+      std::array<std::array<QueueTsStat, kMaxLoggingEventsWorker>, kMaxSymbols>,
+      kMaxThreads>
+      worker_dequeue_stats_;
+  std::array<std::array<size_t, kMaxSymbols>, kMaxThreads>
+      worker_enqueue_stats_id_ = {};
+  std::array<std::array<size_t, kMaxSymbols>, kMaxThreads>
+      worker_dequeue_stats_id_ = {};
+
  private:
   void Print() const;
   nlohmann::json Parse(const nlohmann::json& in_json,
@@ -672,6 +757,9 @@ class Config {
   size_t ue_num_;
   // The count of ue antennas an instance is responsable for
   size_t ue_ant_num_;
+  // Feature to adapt the number of ues from 1 to ue_ant_num_
+  // across frames_to_test_ frames
+  bool adapt_ues_;
 
   // Total number of us antennas in this experiment including the ones
   // instantiated on other runs/machines.
@@ -904,8 +992,7 @@ class Config {
 
   float scale_;  // Scaling factor for all transmit symbols
 
-  bool bigstation_mode_;      // If true, use pipeline-parallel scheduling
-  bool correct_phase_shift_;  // If true, do phase shift correction
+  bool bigstation_mode_;  // If true, use pipeline-parallel scheduling
 
   // The total number of uncoded uplink data bytes in each OFDM symbol
   size_t ul_data_bytes_num_persymbol_;
@@ -1011,6 +1098,9 @@ class Config {
   // Number of frames_ sent by sender during testing = number of frames_
   // processed by Agora before exiting.
   size_t frames_to_test_;
+
+  // Frame number for which the timestamps of different tasks are logged for profiling
+  size_t frame_to_profile_;
 
   // Size of tranport block given by upper layer
   size_t transport_block_size_;

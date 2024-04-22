@@ -24,8 +24,10 @@ static constexpr size_t kFrameWnd = 40;
 // update 3. Disable this on systems with an older MKL version.
 #if __INTEL_MKL__ >= 2020 || (__INTEL_MKL__ == 2019 && __INTEL_MKL_UPDATE__ > 3)
 #define USE_MKL_JIT (1)
+#define USE_MKL_CBLAS (1)
 #else
 #undef USE_MKL_JIT
+#undef USE_MKL_CBLAS
 #endif
 
 //Define to allow mac addition of RB IND to allow dynamic change of mcs
@@ -68,6 +70,28 @@ enum class EventType : int {
 
 static constexpr size_t kNumEventTypes =
     static_cast<size_t>(EventType::kThreadTermination) + 1;
+
+// Define a mapping from EventType to string
+static const std::array<std::string, kNumEventTypes> kEventTypeToString = {
+    "PacketRX",
+    "FFT",
+    "Beam",
+    "Demul",
+    "IFFT",
+    "Precode",
+    "PacketTX",
+    "PacketPilotTX",
+    "Decode",
+    "Encode",
+    "Modul",
+    "PacketFromMac",
+    "PacketToMac",
+    "FFTPilot",
+    "SNRReport",
+    "RANUpdate",
+    "RBIndicator",
+    "Broadcast",
+    "ThreadTermination"};
 
 // Types of Agora Doers
 enum class DoerType : size_t {
@@ -286,6 +310,7 @@ enum class SymbolType {
   kGuard,
   kUnknown
 };
+
 static const std::map<char, SymbolType> kSymbolMap = {
     {'B', SymbolType::kBeacon}, {'C', SymbolType::kCalDL},
     {'D', SymbolType::kDL},     {'G', SymbolType::kGuard},
@@ -293,6 +318,12 @@ static const std::map<char, SymbolType> kSymbolMap = {
     {'U', SymbolType::kUL},     {'S', SymbolType::kControl}};
 
 enum class SubcarrierType { kNull, kDMRS, kPTRS, kData };
+
+// Maximum number of events allowed for all threads per symbol in a logging frame
+static constexpr size_t kMaxLoggingEventsMaster = 100000;
+
+// Maximum number of events allowed per thread per symbol in a logging frame
+static constexpr size_t kMaxLoggingEventsWorker = 1024;
 
 // Maximum number of symbols per frame allowed by Agora
 static constexpr size_t kMaxSymbols = 140;
@@ -326,6 +357,9 @@ static constexpr bool kIsWorkerTimingEnabled = true;
 
 // Maximum breakdown of a statistic (e.g., timing)
 static constexpr size_t kMaxStatsBreakdown = 4;
+
+// Minimum number of workers
+static constexpr size_t kMinWorkers = 2;
 
 // Maximum number of hardware threads on one machine
 static constexpr size_t kMaxThreads = 128;
@@ -385,4 +419,5 @@ static constexpr size_t kOfdmSymbolPerSlot = 1;
 static constexpr size_t kOutputFrameNum = 1;
 
 static constexpr bool kDebugTxData = false;
+static constexpr bool kDebugBypassEncode = false;
 #endif  // SYMBOLS_H_

@@ -176,6 +176,15 @@ struct EventData {
     tags_.at(1) = tag2;
   }
 
+  // Create an event with three tags
+  EventData(EventType event_type, size_t tag1, size_t tag2, size_t tag3)
+      : event_type_(event_type), num_tags_(3) {
+    tags_.fill(0);
+    tags_.at(0) = tag1;
+    tags_.at(1) = tag2;
+    tags_.at(2) = tag3;
+  }
+
   EventData() = default;
 };
 static_assert(sizeof(EventData) == 64);
@@ -402,7 +411,19 @@ class FrameCounters {
   bool CompleteTask(size_t frame_id, size_t symbol_id) {
     const size_t frame_slot = (frame_id % kFrameWnd);
     this->task_count_.at(frame_slot).at(symbol_id)++;
-    return this->IsLastTask(frame_id, symbol_id);
+    return this->IsLastTask(frame_id, symbol_id, this->max_task_count_);
+  }
+
+  /**
+   * @brief Increments the task count for input frame and symbol
+   * @param frame_slot The frame index to increment
+   * @param symbol_id The symbol id of the task to increment
+   * @param new_max_tasks Check against task count to decide complete task
+   */
+  bool CompleteTask(size_t frame_id, size_t symbol_id, size_t new_max_tasks) {
+    const size_t frame_slot = (frame_id % kFrameWnd);
+    this->task_count_.at(frame_slot).at(symbol_id)++;
+    return this->IsLastTask(frame_id, symbol_id, new_max_tasks);
   }
 
   /**
@@ -449,21 +470,22 @@ class FrameCounters {
    * @param frame_id The frame id to check
    * @param symbol_id The symbol id to check
    */
-  bool IsLastTask(size_t frame_id, size_t symbol_id) const {
+  bool IsLastTask(size_t frame_id, size_t symbol_id,
+                  size_t max_task_count) const {
     const size_t frame_slot = frame_id % kFrameWnd;
     const size_t task_count = this->task_count_.at(frame_slot).at(symbol_id);
     bool is_last;
-    if (task_count == this->max_task_count_) {
+    if (task_count == max_task_count) {
       is_last = true;
-    } else if (task_count < this->max_task_count_) {
+    } else if (task_count < max_task_count) {
       is_last = false;
     } else {
       // This should never happen
       is_last = true;
       std::printf(
-          "Unexpected result in IsLastTask: Task Count %zu,  Max Count %zu, "
+          "Unexpected result in IsLastTask: Task Count %zu, Max Count %zu, "
           "Frame %zu, Symbol %zu\n",
-          task_count, this->max_task_count_, frame_id, symbol_id);
+          task_count, max_task_count, frame_id, symbol_id);
       assert(false);
       throw std::runtime_error("IsLastTask error!");
     }

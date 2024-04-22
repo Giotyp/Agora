@@ -119,7 +119,6 @@ void SetCpuLayoutOnNumaNodes(bool verbose,
       }
     }
     std::printf("Usable Cpu count %zu\n", cpu_layout.size());
-
     numa_bitmask_free(bm);
     cpu_layout_initialized = true;
   }
@@ -323,6 +322,52 @@ std::vector<uint32_t> Utils::Cfloat32ToUint32(
   return out;
 }
 
+size_t Utils::Bits2Int(std::vector<uint8_t> in) {
+  size_t out = 0;
+  for (size_t i = 0; i < in.size(); i++) {
+    out += static_cast<size_t>(in.at(i) * std::pow(2, i));
+  }
+  return out;
+}
+
+size_t Utils::Bits2Int(arma::uvec in) {
+  size_t out = 0;
+  for (size_t i = 0; i < in.n_elem; i++) {
+    out += static_cast<size_t>(in(i)*std::pow(2, i));
+  }
+  return out;
+}
+
+size_t Utils::BitIndices2Int(arma::uvec in) {
+  size_t out = 0;
+  for (size_t i = 0; i < in.n_elem; i++) {
+    out += static_cast<size_t>(std::pow(2, in(i)));
+  }
+  return out;
+}
+
+arma::cx_frowvec Utils::Int2Bits(size_t in, size_t num_bits) {
+  arma::cx_frowvec out(num_bits, arma::fill::zeros);
+  for (size_t i = 0; i < num_bits; i++) {
+    if ((in & 1) != 0u) {
+      out(i) = arma::cx_float(1, 0);
+    }
+    in >>= 1;
+  }
+  return out;
+}
+
+arma::uvec Utils::BitOneIndices(size_t in, size_t num_bits) {
+  arma::uvec out;
+  for (size_t i = 0; i < num_bits; i++) {
+    if ((in & 1) != 0u) {
+      out = arma::join_cols(out, arma::uvec({i}));
+    }
+    in >>= 1;
+  }
+  return out;
+}
+
 // Returns index locations of sym for each frame in frames
 std::vector<std::vector<size_t>> Utils::LoadSymbols(
     std::vector<std::string> const& frames, char sym) {
@@ -424,8 +469,8 @@ void Utils::PrintVector(const std::vector<std::complex<int16_t>>& data) {
 }
 
 void Utils::WriteBinaryFile(const std::string& name, size_t elem_size,
-                            size_t buffer_size, void* buff) {
-  auto* f_handle = std::fopen(name.c_str(), "wb");
+                            size_t buffer_size, void* buff, bool append) {
+  auto* f_handle = std::fopen(name.c_str(), append ? "ab" : "wb");
   if (f_handle == nullptr) {
     throw std::runtime_error("Failed to open binary file " + name);
   }
@@ -434,6 +479,29 @@ void Utils::WriteBinaryFile(const std::string& name, size_t elem_size,
   if (write_status != buffer_size) {
     throw std::runtime_error("Failed to write binary file " + name);
   }
+  const auto close_status = std::fclose(f_handle);
+  if (close_status != 0) {
+    throw std::runtime_error("Failed to close binary file " + name);
+  }
+}
+
+void Utils::ReadBinaryFile(const std::string& name, size_t elem_size,
+                           size_t buffer_size, size_t offset, void* buff) {
+  auto* f_handle = std::fopen(name.c_str(), "rb");
+  if (f_handle == nullptr) {
+    throw std::runtime_error("Failed to open binary file " + name);
+  }
+  const auto seek_status = std::fseek(f_handle, offset, SEEK_CUR);
+  if (seek_status != 0) {
+    throw std::runtime_error("Failed to seek properly into binary file " +
+                             name);
+  }
+
+  const auto read_status = std::fread(buff, elem_size, buffer_size, f_handle);
+  if (read_status != buffer_size) {
+    throw std::runtime_error("Failed to read binary file " + name);
+  }
+
   const auto close_status = std::fclose(f_handle);
   if (close_status != 0) {
     throw std::runtime_error("Failed to close binary file " + name);

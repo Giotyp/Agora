@@ -13,12 +13,12 @@ AgoraBuffer::AgoraBuffer(Config* const cfg)
       dl_csi_buffer_(kFrameWnd, cfg->UeAntNum(),
                      cfg->BsAntNum() * cfg->OfdmDataNum()),
       ul_beam_matrix_(kFrameWnd, cfg->OfdmDataNum(),
-                      cfg->BsAntNum() * cfg->SpatialStreamsNum()),
+                      cfg->BsAntNum() * cfg->UeAntNum()),
       dl_beam_matrix_(kFrameWnd, cfg->OfdmDataNum(),
-                      cfg->SpatialStreamsNum() * cfg->BsAntNum()),
-      demod_buffer_(kFrameWnd, cfg->Frame().NumULSyms(),
-                    cfg->SpatialStreamsNum(), kMaxModType * cfg->OfdmDataNum()),
-      decoded_buffer_(kFrameWnd, cfg->Frame().NumULSyms(), cfg->UeAntNum(),
+                      cfg->UeAntNum() * cfg->BsAntNum()),
+      demod_buffer_(kFrameWnd, cfg->Frame().NumUlDataSyms(), cfg->UeAntNum(),
+                    kMaxModType * cfg->OfdmDataNum()),
+      decoded_buffer_(kFrameWnd, cfg->Frame().NumUlDataSyms(), cfg->UeAntNum(),
                       cfg->LdpcConfig(Direction::kUplink).NumBlocksInSymbol() *
                           Roundup<64>(cfg->NumBytesPerCb(Direction::kUplink))) {
   AllocateTables();
@@ -40,11 +40,10 @@ void AgoraBuffer::AllocateTables() {
                      Agora_memory::Alignment_t::kAlign64);
 
   equal_buffer_.Malloc(task_buffer_symbol_num_ul,
-                       config_->OfdmDataNum() * config_->SpatialStreamsNum(),
+                       config_->OfdmDataNum() * config_->UeAntNum(),
                        Agora_memory::Alignment_t::kAlign64);
   ue_spec_pilot_buffer_.Calloc(
-      kFrameWnd,
-      config_->Frame().ClientUlPilotSymbols() * config_->SpatialStreamsNum(),
+      kFrameWnd, config_->Frame().ClientUlPilotSymbols() * config_->UeAntNum(),
       Agora_memory::Alignment_t::kAlign64);
 
   // Downlink Control + Data
@@ -65,6 +64,8 @@ void AgoraBuffer::AllocateTables() {
   if (config_->Frame().NumDLSyms() > 0) {
     const size_t task_buffer_symbol_num =
         kFrameWnd * config_->Frame().NumDLSyms();
+    const size_t task_buffer_data_symbol_num =
+        kFrameWnd * config_->Frame().NumDlDataSyms();
 
     size_t dl_bits_buffer_size =
         kFrameWnd * config_->MacBytesNumPerframe(Direction::kDownlink);
@@ -105,8 +106,8 @@ void AgoraBuffer::AllocateTables() {
       }
     }
     dl_mod_bits_buffer_.Calloc(
-        task_buffer_symbol_num,
-        Roundup<64>(config_->GetOFDMDataNum()) * config_->SpatialStreamsNum(),
+        task_buffer_data_symbol_num,
+        Roundup<64>(config_->GetOFDMDataNum()) * config_->UeAntNum(),
         Agora_memory::Alignment_t::kAlign64);
     if (config_->UseExplicitCSI()) {
       dl_feedback_buf_size_ =

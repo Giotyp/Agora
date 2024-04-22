@@ -9,8 +9,9 @@
 #include "datatype_conversion.h"
 #include "logger.h"
 
-static constexpr bool kPrintFFTInput = false;
-static constexpr bool kPrintInputPilot = false;
+static constexpr bool kPrintFFTInputFixed = false;
+static constexpr bool kPrintFFTInputFloat = false;
+static constexpr bool kPrintFFTOutputFloat = false;
 static constexpr bool kPrintPilotCorrStats = false;
 static constexpr bool kEnableCfoCorrection = false;
 
@@ -98,7 +99,7 @@ EventData DoFFT::Launch(size_t tag) {
   const size_t ant_id = pkt->ant_id_;
   const size_t radio_id = ant_id / cfg_->NumChannels();
   const size_t cell_id = pkt->cell_id_;
-  const SymbolType sym_type = cfg_->GetSymbolType(symbol_id);
+  const SymbolType sym_type = cfg_->Frame().GetSymbolType(symbol_id);
   const bool bypass_fft = cfg_->FreqDomainChannel();
 
   if (kUse12BitIQ) {
@@ -122,8 +123,10 @@ EventData DoFFT::Launch(size_t tag) {
                             cfg_->OfdmCaNum() * 2);
   }
   if (kDebugPrintInTask) {
-    std::printf("In doFFT thread %d: frame: %zu, symbol: %zu, ant: %zu\n", tid_,
-                frame_id, symbol_id, ant_id);
+    std::printf(
+        "In doFFT thread %d: frame: %zu, symbol: %zu, ant: %zu, symbol type: "
+        "%zu\n",
+        tid_, frame_id, symbol_id, ant_id, static_cast<size_t>(sym_type));
   }
 
   if ((kPrintPilotCorrStats == true) &&
@@ -148,18 +151,18 @@ EventData DoFFT::Launch(size_t tag) {
         "sig_offset %zu, peak %2.4f\n",
         tid_, frame_id, symbol_id, ant_id, sig_offset, peak);
   }
-  if (kPrintInputPilot) {
+  if (kPrintFFTInputFixed) {
     std::stringstream ss;
-    ss << "FFT_input_" << symbol_id << "_" << ant_id << "=[";
+    ss << "FFT_input_" << frame_id << "_" << symbol_id << "_" << ant_id << "=[";
     for (size_t i = 0; i < cfg_->SampsPerSymbol(); i++) {
       ss << pkt->data_[2 * i] << "+1j*" << pkt->data_[2 * i + 1] << " ";
     }
     ss << "];" << std::endl;
     std::cout << ss.str();
   }
-  if (kPrintFFTInput) {
+  if (kPrintFFTInputFloat) {
     std::stringstream ss;
-    ss << "FFT_input_" << symbol_id << "_" << ant_id << "=[";
+    ss << "FFT_input_" << frame_id << "_" << symbol_id << "_" << ant_id << "=[";
     for (size_t i = 0; i < cfg_->OfdmCaNum(); i++) {
       ss << std::fixed << std::setw(5) << std::setprecision(3)
          << fft_inout_[i].re << "+1j*" << fft_inout_[i].im << " ";
@@ -311,6 +314,18 @@ EventData DoFFT::Launch(size_t tag) {
         std::to_string(symbol_id) + std::string(" antenna ") +
         std::to_string(ant_id) + "\n";
     RtAssert(false, error_message);
+  }
+
+  if (kPrintFFTOutputFloat) {  // FFT is computed in-place
+    std::stringstream ss;
+    ss << "FFT_output_" << frame_id << "_" << symbol_id << "_" << ant_id
+       << "=[";
+    for (size_t i = 0; i < cfg_->OfdmCaNum(); i++) {
+      ss << std::fixed << std::setw(5) << std::setprecision(3)
+         << fft_inout_[i].re << "+1j*" << fft_inout_[i].im << " ";
+    }
+    ss << "];" << std::endl;
+    std::cout << ss.str();
   }
 
   duration_stat->task_duration_[3] += GetTime::WorkerRdtsc() - start_tsc2;

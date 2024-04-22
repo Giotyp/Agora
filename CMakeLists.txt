@@ -444,6 +444,7 @@ set(COMMON_SOURCES
   src/common/scrambler.cc
   src/mac/mac_scheduler.cc
   src/mac/schedulers/scheduler_model.cc
+  src/mac/schedulers/custom_schedule.cc
   src/mac/schedulers/round_robbin.cc
   src/mac/schedulers/proportional_fairness.cc
   src/common/ipc/udp_comm.cc
@@ -516,7 +517,7 @@ add_executable(agora
 target_link_libraries(agora ${COMMON_LIBS})
 
 add_executable(data_generator
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/data_generator/data_generator_main.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/data_generator/test_vector_generator.cc
   $<TARGET_OBJECTS:common_sources_lib>)
 target_link_libraries(data_generator ${COMMON_LIBS})
 target_compile_definitions(data_generator PRIVATE GENERATE_DATA)

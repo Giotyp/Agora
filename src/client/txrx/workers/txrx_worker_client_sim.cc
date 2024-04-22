@@ -8,6 +8,7 @@
 
 #include <cassert>
 
+#include "data_generator.h"
 #include "gettime.h"
 #include "logger.h"
 #include "message.h"
@@ -115,8 +116,10 @@ std::vector<Packet*> TxRxWorkerClientSim::RecvEnqueue(size_t interface_id) {
           tid_, pkt->frame_id_, pkt->symbol_id_, pkt->ant_id_);
     }
     size_t symbol_id = pkt->symbol_id_;
-    if (Configuration()->GetSymbolType(symbol_id) == SymbolType::kControl) {
-      size_t ctrl_frame_id = Configuration()->DecodeBroadcastSlots(pkt->data_);
+    auto symbol_type = Configuration()->Frame().GetSymbolType(symbol_id);
+    if (symbol_type == SymbolType::kControl) {
+      size_t ctrl_frame_id =
+          DataGenerator::DecodeBroadcastSlots(Configuration(), pkt->data_);
       if (ctrl_frame_id != pkt->frame_id_) {
         AGORA_LOG_ERROR(
             "RecvEnqueue: Ctrl channel frame_id mismatch error (%zu/%zu)!\n",
@@ -124,8 +127,7 @@ std::vector<Packet*> TxRxWorkerClientSim::RecvEnqueue(size_t interface_id) {
       }
       ReturnRxPacket(rx_placement);
     } else if (Configuration()->UseExplicitCSI() == true &&
-               Configuration()->GetSymbolType(symbol_id) ==
-                   SymbolType::kCalDL) {
+               symbol_type == SymbolType::kCalDL) {
       const EventData feedback_event(EventType::kPacketToRemote,
                                      rx_tag_t(&rx_placement).tag_);
       NotifyComplete(feedback_event);

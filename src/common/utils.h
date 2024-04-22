@@ -75,6 +75,12 @@ class Utils {
   static std::vector<uint32_t> Cfloat32ToUint32(
       const std::vector<std::complex<float>>& in, bool conj,
       const std::string& order);
+  static size_t Bits2Int(std::vector<uint8_t> in);
+  static size_t Bits2Int(arma::uvec in);
+  static size_t BitIndices2Int(arma::uvec in);
+  static arma::cx_frowvec Int2Bits(size_t in, size_t num_bits);
+  static arma::uvec BitOneIndices(size_t in, size_t num_bits);
+
   static std::vector<std::vector<size_t>> LoadSymbols(
       std::vector<std::string> const& frames, char sym);
   static void LoadDevices(std::string filename, std::vector<std::string>& data);
@@ -86,7 +92,10 @@ class Utils {
   static std::vector<std::string> Split(const std::string& s, char delimiter);
   static void PrintVector(const std::vector<std::complex<int16_t>>& data);
   static void WriteBinaryFile(const std::string& name, size_t elem_size,
-                              size_t buffer_size, void* buff);
+                              size_t buffer_size, void* buff,
+                              bool append = false);
+  static void ReadBinaryFile(const std::string& name, size_t elem_size,
+                             size_t buffer_size, size_t offset, void* buff);
   static void PrintVec(const arma::cx_fvec& c, const std::string& ss);
   static void SaveVec(const arma::cx_fvec& c, const std::string& filename,
                       const std::string& /*ss*/, const bool /*append*/);
