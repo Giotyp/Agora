@@ -89,7 +89,7 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
 
     if (cfg->AdaptUes()) {
       if (cfg->DynamicCoreAlloc()) {
-        size_t num_ues_adaptations = 10;
+        size_t num_ues_adaptations = 100;
         for (size_t i = 0; i < num_ues_adaptations; ++i) {
           size_t sampled_ue_num = distribution(gen);
           for (size_t j = (cfg->FramesToTest() / num_ues_adaptations) * i;

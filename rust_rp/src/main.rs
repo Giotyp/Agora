@@ -49,6 +49,7 @@ struct MyAgoraEnv {
     ma_window: Vec<Vec<Vec<f32>>>,
     ma_no_change_count: Vec<Vec<u16>>,
     data_outlier_percentage: u16,
+    previous_frame_id: u64,
     state: u64,
     done: bool,
 }
@@ -71,6 +72,7 @@ impl AgoraEnv for MyAgoraEnv {
             ma_window: vec![vec![vec![0.0; 10]; 16]; 25],
             ma_no_change_count: vec![vec![0; 16]; 25],
             data_outlier_percentage: 10,
+            previous_frame_id: 0,
             state: 0,
             done: false }
     }
@@ -311,9 +313,25 @@ impl AgoraEnv for MyAgoraEnv {
                 agora_cores = retrieved_msg[1];
                 agora_users = retrieved_msg[2];
                 frame_id = retrieved_msg[3];
-                println!("Agora status: absolute latency - {}, current cores - {}, current users - {}, frame id - {}\n", absolute_latency, agora_cores, agora_users, frame_id);            
+                println!("Agora status: absolute latency - {}, current cores - {}, current users - {}, frame id - {}\n", absolute_latency, agora_cores, agora_users, frame_id);
             }
         }
+
+        let mut is_same_frame_id = true;
+        while is_same_frame_id == true {
+            if frame_id != self.previous_frame_id {
+                is_same_frame_id = false;
+            } else {
+                println!("Latency received for same frame_id, requesting Agora again ...\n");
+                retrieved_msg = retrieve_agora_traffic(socket).await?;
+                absolute_latency = retrieved_msg[0];
+                agora_cores = retrieved_msg[1];
+                agora_users = retrieved_msg[2];
+                frame_id = retrieved_msg[3];
+                println!("Agora status: absolute latency - {}, current cores - {}, current users - {}, frame id - {}\n", absolute_latency, agora_cores, agora_users, frame_id);
+            }
+        }
+        self.previous_frame_id = frame_id;
 
         // Outlier is ignored for moving average filtering
         let agora_cores_rl = MyAgoraEnv::agora_to_rl_index_mapping(self, agora_cores as u16);
@@ -547,7 +565,7 @@ async fn main() -> io::Result<()> {
                 if is_real_agora == true {
                     num_max_cores = 8;
                     num_min_cores = 4;
-                    num_max_users = 8;
+                    num_max_users = 16;
                     num_latency_levels = 10 + 1; // + 1 --> To account for max_latency_limit and beyond latency values
                     num_actions = 3;
                     max_latency_limit = 1000.0;
@@ -567,7 +585,7 @@ async fn main() -> io::Result<()> {
                 let gamma = 0.9;  // discount factor
                 let epsilon = 0.1;  // exploration-exploitation trade-off
         
-                let num_episodes = 1000; // Episodes count for training
+                let num_episodes = 10000; // Episodes count for training
                 let terminate_count = 1000; // Epochs count to terminate training when not converging
 
                 let consecutive_epochs_exit_count = 5; // Number of consecutive epochs with same state and reward to treat the training converged. Applicable when the target reward is the least negative.
@@ -581,7 +599,7 @@ async fn main() -> io::Result<()> {
                 agora_env.set_initial_values(num_max_cores, num_min_cores, num_max_users, num_latency_levels, num_actions, max_latency_limit, ma_window_size as u16, data_outlier_percentage, rewards, 0, false); // Set initial state to 2 and done to false
 
                 let num_states = agora_env.get_num_states();
-                // println!("num_states {:?}\n", num_states);
+                println!("num_states {:?}\n", num_states);
 
                 // Try to open existing cores_users_absolute_latency file
                 let file_result = OpenOptions::new().read(true).open("cores_users_absolute_latency.json");
@@ -704,7 +722,7 @@ async fn main() -> io::Result<()> {
                             // Count epochs
                             epochs += 1;
 
-                            let mut current_tsc = MyAgoraEnv::rdtsc();
+                            let current_tsc = MyAgoraEnv::rdtsc();
                             println!("TSC: {:?}, Episode {:?}, Epoch {:?}\n", current_tsc, episode, epochs);
                             agora_env.set(state);
                             let users_before_action = agora_env.get_curr_users(state);
@@ -728,19 +746,17 @@ async fn main() -> io::Result<()> {
                                 let ma_absolute_latency;
                                 let agora_users;
                                 (ma_absolute_latency, agora_cores, agora_users, next_state, reward, done) = agora_env.step_real(&mut socket, action as u16).await?;
-                                current_tsc = MyAgoraEnv::rdtsc();
-                                println!("TSC: {:?}, step_output: ma_absolute_latency {}, current_cores {}, current_users {}, next_state {}, reward {}, done {}\n",
-                                    current_tsc, ma_absolute_latency, agora_cores, agora_users, next_state, reward, done);
+                                println!("step_output: ma_absolute_latency {}, current_cores {}, current_users {}, next_state {}, reward {}, done {}\n",
+                                    ma_absolute_latency, agora_cores, agora_users, next_state, reward, done);
                                 let agora_cores_rl = agora_env.agora_to_rl_index_mapping(agora_cores as u16);
                                 let agora_users_rl = agora_env.agora_to_rl_index_mapping(agora_users as u16);
                                 cores_users_absolute_latency[agora_cores_rl as usize][agora_users_rl as usize].push(ma_absolute_latency);
                             } else {
                                 let step_output = agora_env.step_emulated(action as u16);
-                                current_tsc = MyAgoraEnv::rdtsc();
                                 next_state = step_output.0;
                                 reward = step_output.1;
                                 done = step_output.2;
-                                println!("TSC: {:?}, step_output: next_state {}, reward {}, done {}\n", current_tsc, next_state, reward, done);
+                                println!("step_output: next_state {}, reward {}, done {}\n", next_state, reward, done);
                             }
 
                             // Record current state and reward
@@ -1080,17 +1096,16 @@ async fn create_udp_socket(host: &str) -> io::Result<UdpSocket> {
 
 // Send message through UDP socket
 async fn send_message(socket: &mut UdpSocket, message: &[u8; 24]) -> io::Result<()> {
-    let current_tsc = MyAgoraEnv::rdtsc();
     let len = socket.send_to(message, TX_ADDR).await?;
     let message_temp = [message[0], message[8], message[16]];
 
     if message[0] == 0 {
-        println!("TSC: {:?} - {:?} bytes sent to {:?} (TX_ADDR) requesting Agora cores and users details", current_tsc, len, TX_ADDR);
+        println!("{:?} bytes sent to {:?} (TX_ADDR) requesting Agora cores and users details", len, TX_ADDR);
     } else if message[0] == 1 {
         if message[8] == 0 && message[16] == 0 {
-            println!("TSC: {:?} - {:?} bytes sent to {:?} (TX_ADDR) requesting Agora cores and latency details", current_tsc, len, TX_ADDR);
+            println!("{:?} bytes sent to {:?} (TX_ADDR) requesting Agora cores and latency details", len, TX_ADDR);
         } else {
-            println!("TSC: {:?} - {:?} bytes sent to {:?} (TX_ADDR) to update cores - content [msg type, add core, remove core]: {:?}", current_tsc, len, TX_ADDR, &message_temp);
+            println!("{:?} bytes sent to {:?} (TX_ADDR) to update cores - content [msg type, add core, remove core]: {:?}", len, TX_ADDR, &message_temp);
         }
     } else {
         println!("Wrong message type to Agora");
@@ -1101,12 +1116,8 @@ async fn send_message(socket: &mut UdpSocket, message: &[u8; 24]) -> io::Result<
 
 // Listen message on UDP socket
 async fn listen_message(socket: &mut UdpSocket) -> io::Result<[u64; 5]> {
-    let mut current_tsc = MyAgoraEnv::rdtsc();
-    println!("TSC before: {:?}", current_tsc);
     let mut buf = [0u8; 40];
     let (len, addr) = socket.recv_from(&mut buf).await?;
-    current_tsc = MyAgoraEnv::rdtsc();
-    println!("TSC after: {:?}", current_tsc);
     if len != 40 {
         // Handle invalid message length
         return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid message length"));
@@ -1117,7 +1128,7 @@ async fn listen_message(socket: &mut UdpSocket) -> io::Result<[u64; 5]> {
     let d: u64 = u64::from_ne_bytes(buf[24..32].try_into().unwrap());
     let e: u64 = u64::from_ne_bytes(buf[32..].try_into().unwrap());
     let message = [a, b, c, d, e];
-    println!("TSC: {:?} - {:?} bytes received from {:?} (RX_ADDR) - content [msg_0, msg_1, msg_2, msg_3, msg_4]: {:?}", current_tsc, len, addr, &message);
+    println!("{:?} bytes received from {:?} (RX_ADDR) - content [msg_0, msg_1, msg_2, msg_3, msg_4]: {:?}", len, addr, &message);
 
     return Ok(message);
 }
