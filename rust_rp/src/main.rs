@@ -563,8 +563,8 @@ async fn main() -> io::Result<()> {
                 let rewards;
 
                 if is_real_agora == true {
-                    num_max_cores = 8;
-                    num_min_cores = 4;
+                    num_max_cores = 12;
+                    num_min_cores = 3;
                     num_max_users = 16;
                     num_latency_levels = 10 + 1; // + 1 --> To account for max_latency_limit and beyond latency values
                     num_actions = 3;

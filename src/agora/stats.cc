@@ -207,8 +207,8 @@ double Stats::MeasureLastFrameLatency() {
 
   double processing_started = MasterGetUsSymbolFromRef(TsType::kSymbolRX, frame_id, symbol_id, master_min_tsc_symbolrx_idx, ref_tsc);
   double decoding_done = MasterGetUsSymbolFromRef(TsType::kDecodeDone, frame_id, symbol_id, master_max_tsc_decode_idx, ref_tsc);
-  AGORA_LOG_INFO("MeasureLastFrameLatency: frame_id %zu symbol_id %zu ref_tsc %zu master_min_tsc_symbolrx_idx %zu master_min_tsc_symbolrx %zu master_max_tsc_decode_idx %zu master_max_tsc_decode %zu (master_max_tsc_decode - master_min_tsc_symbolrx) %zu processing_started %.3f decoding_done %.3f symbol latency %.3f\n",
-    frame_id, symbol_id, ref_tsc, master_min_tsc_symbolrx_idx, master_min_tsc_symbolrx, master_max_tsc_decode_idx, master_max_tsc_decode, (master_max_tsc_decode - master_min_tsc_symbolrx), processing_started, decoding_done, (decoding_done - processing_started));  
+  // AGORA_LOG_INFO("MeasureLastFrameLatency: frame_id %zu symbol_id %zu ref_tsc %zu master_min_tsc_symbolrx_idx %zu master_min_tsc_symbolrx %zu master_max_tsc_decode_idx %zu master_max_tsc_decode %zu (master_max_tsc_decode - master_min_tsc_symbolrx) %zu processing_started %.3f decoding_done %.3f symbol latency %.3f\n",
+  //   frame_id, symbol_id, ref_tsc, master_min_tsc_symbolrx_idx, master_min_tsc_symbolrx, master_max_tsc_decode_idx, master_max_tsc_decode, (master_max_tsc_decode - master_min_tsc_symbolrx), processing_started, decoding_done, (decoding_done - processing_started));
   return decoding_done - processing_started;
 }
 
@@ -219,7 +219,7 @@ void Stats::SaveToFile() {
   RtAssert(fp_debug != nullptr,
            std::string("Open file failed ") + std::to_string(errno));
 
-  MeasureLastFrameLatency();
+  // MeasureLastFrameLatency();
 
   size_t first_frame_idx = 0;
   size_t last_frame_idx = this->last_frame_id_;
