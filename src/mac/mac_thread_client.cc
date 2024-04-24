@@ -468,7 +468,7 @@ void MacThreadClient::ProcessUdpPacketsFromApps() {
       }
       std::fprintf(log_file_, "%s\n", ss.str().c_str());
     }
-    mac_ring_.Push(*pkt, ue_id);
+    mac_ring_.Push(&udp_pkt_buf_[pkt_offset], mac_packet_length, ue_id);
     pkt_offset += mac_packet_length;
   }
 
@@ -508,14 +508,13 @@ void MacThreadClient::SendCodeblocksToPhy(EventData event) {
   if (kEnableMac) {
     // Copy from the packet rx buffer into ul_bits memory
     for (size_t pkt_id = 0; pkt_id < num_mac_packets_per_frame; pkt_id++) {
-      const auto src_packet = mac_ring_.Pop(ue_id);
       const size_t dest_pkt_offset = dest_pkt_base + pkt_id * mac_packet_length;
-      auto* pkt = reinterpret_cast<MacPacketPacked*>(
+      std::byte* pkt_bits = reinterpret_cast<std::byte*>(
           &(*client_.ul_bits_buffer_)[ue_id][dest_pkt_offset]);
+      mac_ring_.Pop(pkt_bits, mac_packet_length, ue_id);
+      auto* pkt = reinterpret_cast<MacPacketPacked*>(pkt_bits);
       pkt->Set(frame_id, cfg_->Frame().GetULSymbol(pkt_id + num_pilot_symbols),
                ue_id, mac_payload_length);
-
-      pkt->LoadData(src_packet.Data());
       // Insert CRC
       pkt->Crc((uint16_t)(crc_obj_->CalculateCrc24(pkt->Data(),
                                                    pkt->PayloadLength()) &

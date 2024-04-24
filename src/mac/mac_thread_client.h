@@ -170,7 +170,7 @@ class MacThreadClient {
   std::unique_ptr<DoCRC> crc_obj_;
 
   RBIndicator* ri_;
-  MacMultiRingBuffer<MacPacketPacked> mac_ring_;
+  MacMultiRingBuffer mac_ring_;
 };
 
 #endif  // MAC_THREAD_H_
