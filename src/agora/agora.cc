@@ -289,6 +289,7 @@ void Agora::ScheduleCodeblocks(EventType event_type, Direction dir,
                          message_->GetPtok(event_type, qid), event);
     }
   }
+  
   else {
     auto base_tag = gen_tag_t::FrmSymCb(frame_id, symbol_idx, 0);
     const size_t num_tasks = config_->NumCbPerSlot(dir) * config_->SpatialStreamsNum();
@@ -535,7 +536,7 @@ void Agora::Start() {
               this->demul_counters_.CompleteTask(frame_id, symbol_id);
 
           if (last_demul_task == true) {
-            if (kUplinkHardDemod == false) {
+            if (kUplinkHardDemod == false && (cfg->SlotScheduling() == false)) {
               /*  &&
                 symbol_id >= config_->Frame().GetULSymbol(
                                  config_->Frame().ClientUlPilotSymbols())) {*/
@@ -548,6 +549,10 @@ void Agora::Start() {
             const bool last_demul_symbol =
                 this->demul_counters_.CompleteSymbol(frame_id);
             if (last_demul_symbol == true) {
+              if ((cfg->SlotScheduling() == false)) {
+                  ScheduleCodeblocks(EventType::kDecode, Direction::kUplink,
+                                   frame_id, symbol_id);
+              }
               max_equaled_frame_ = frame_id;
               this->stats_->MasterSetTsc(TsType::kDemulDone, frame_id);
               stats_->PrintPerFrameDone(PrintType::kDemul, frame_id);
@@ -607,25 +612,29 @@ void Agora::Start() {
             if constexpr (kEnableMac) {
               ScheduleUsers(EventType::kPacketToMac, frame_id, symbol_id);
             }
-            stats_->PrintPerSymbolDone(
+            
+            if (cfg->SlotScheduling() == false) {
+                stats_->PrintPerSymbolDone(
                 PrintType::kDecode, frame_id, symbol_id,
                 decode_counters_.GetSymbolCount(frame_id) + 1);
-            const bool last_decode_symbol =
+                const bool last_decode_symbol =
                 this->decode_counters_.CompleteSymbol(frame_id);
-            if (last_decode_symbol == true) {
-              this->stats_->MasterSetTsc(TsType::kDecodeDone, frame_id);
-              stats_->PrintPerFrameDone(PrintType::kDecode, frame_id);
-              auto ue_map = mac_sched_->ScheduledUeMap(frame_id, 0u);
-              this->phy_stats_->RecordBer(frame_id, ue_map);
-              this->phy_stats_->RecordSer(frame_id, ue_map);
-              if constexpr (kEnableMac == false) {
-                assert(frame_tracking_.cur_proc_frame_id_ == frame_id);
-                const bool work_finished = this->CheckFrameComplete(frame_id);
-                if (work_finished == true) {
-                  goto finish;
+                if (last_decode_symbol == true) {
+                  this->stats_->MasterSetTsc(TsType::kDecodeDone, frame_id);
+                  stats_->PrintPerFrameDone(PrintType::kDecode, frame_id);
+                  auto ue_map = mac_sched_->ScheduledUeMap(frame_id, 0u);
+                  this->phy_stats_->RecordBer(frame_id, ue_map);
+                  this->phy_stats_->RecordSer(frame_id, ue_map);
+                  if constexpr (kEnableMac == false) {
+                    assert(frame_tracking_.cur_proc_frame_id_ == frame_id);
+                    const bool work_finished = this->CheckFrameComplete(frame_id);
+                    if (work_finished == true) {
+                      goto finish;
+                    }
+                  }
                 }
-              }
             }
+
           }
         } break;
 
