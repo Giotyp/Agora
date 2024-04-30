@@ -29,8 +29,8 @@ MacUtils::MacUtils(FrameStats frame, double frame_duration,
 
 void MacUtils::SetMacParams(const nlohmann::json& ul_mcs_json,
                             const nlohmann::json& dl_mcs_json, bool verbose) {
-  this->UpdateUlMacParams(ul_mcs_json);
-  this->UpdateDlMacParams(dl_mcs_json);
+  this->UpdateUlMcsParams(ul_mcs_json);
+  this->UpdateDlMcsParams(dl_mcs_json);
   this->UpdateCtrlMCS();
   if (verbose) {
     this->DumpMcsInfo();
@@ -53,9 +53,27 @@ void MacUtils::SetMacParams(const nlohmann::json& ul_mcs_json,
       (dl_mac_data_bytes_num_perframe_ * 8.0f) / (frame_duration_ * 1e6));
 }
 
-void MacUtils::UpdateUlMacParams(const nlohmann::json& ul_mcs_json) {
+void MacUtils::UpdateUlMcsParams(const nlohmann::json& ul_mcs_json) {
   this->UpdateUlMCS(ul_mcs_json);
+  this->UpdateUlMacParams();
+}
 
+void MacUtils::UpdateUlMcsParams(size_t ul_mcs_index) {
+  this->UpdateUlMCS(ul_mcs_index);
+  this->UpdateUlMacParams();
+}
+
+void MacUtils::UpdateDlMcsParams(const nlohmann::json& dl_mcs_json) {
+  this->UpdateDlMCS(dl_mcs_json);
+  this->UpdateDlMacParams();
+}
+
+void MacUtils::UpdateDlMcsParams(size_t dl_mcs_index) {
+  this->UpdateDlMCS(dl_mcs_index);
+  this->UpdateDlMacParams();
+}
+
+void MacUtils::UpdateUlMacParams() {
   ul_num_bytes_per_cb_ = ul_ldpc_config_.NumCbLen() / 8;
   ul_num_padding_bytes_per_cb_ =
       Roundup<64>(ul_num_bytes_per_cb_) - ul_num_bytes_per_cb_;
@@ -99,9 +117,7 @@ void MacUtils::UpdateUlMacParams(const nlohmann::json& ul_mcs_json) {
   ul_mac_bytes_num_perframe_ = ul_mac_packet_length_ * ul_mac_packets_perframe_;
 }
 
-void MacUtils::UpdateDlMacParams(const nlohmann::json& dl_mcs_json) {
-  this->UpdateDlMCS(dl_mcs_json);
-
+void MacUtils::UpdateDlMacParams() {
   dl_num_bytes_per_cb_ = dl_ldpc_config_.NumCbLen() / 8;
   dl_num_padding_bytes_per_cb_ =
       Roundup<64>(dl_num_bytes_per_cb_) - dl_num_bytes_per_cb_;
@@ -182,35 +198,41 @@ inline size_t SelectZc(size_t base_graph, size_t code_rate,
 
 void MacUtils::UpdateUlMCS(const json& ul_mcs) {
   ul_mcs_json_ = ul_mcs;
+  size_t ul_mcs_index = SIZE_MAX;
   if (ul_mcs.find("mcs_index") == ul_mcs.end()) {
-    ul_modulation_ = ul_mcs.value("modulation", "16QAM");
-    ul_mod_order_bits_ = kModulStringMap.at(ul_modulation_);
+    auto ul_modulation = ul_mcs.value("modulation", "16QAM");
+    auto ul_mod_order_bits = kModulStringMap.at(ul_modulation);
 
     double ul_code_rate_usr = ul_mcs.value("code_rate", 0.333);
     size_t code_rate_int =
         static_cast<size_t>(std::round(ul_code_rate_usr * 1024.0));
 
-    ul_mcs_index_ = CommsLib::GetMcsIndex(ul_mod_order_bits_, code_rate_int);
-    ul_code_rate_ = GetCodeRate(ul_mcs_index_);
-    if (ul_code_rate_ / 1024.0 != ul_code_rate_usr) {
+    ul_mcs_index = CommsLib::GetMcsIndex(ul_mod_order_bits, code_rate_int);
+    size_t ul_code_rate = GetCodeRate(ul_mcs_index);
+    if (ul_code_rate / 1024.0 != ul_code_rate_usr) {
       AGORA_LOG_WARN(
           "Rounded the user-defined uplink code rate to the closest standard "
           "rate %zu/1024.\n",
-          ul_code_rate_);
+          ul_code_rate);
     }
   } else {
     // 16QAM, 340/1024
-    ul_mcs_index_ = ul_mcs.value("mcs_index", kDefaultMcsIndex);
-    ul_mod_order_bits_ = GetModOrderBits(ul_mcs_index_);
-    ul_modulation_ = MapModToStr(ul_mod_order_bits_);
-    ul_code_rate_ = GetCodeRate(ul_mcs_index_);
+    ul_mcs_index = ul_mcs.value("mcs_index", kDefaultMcsIndex);
   }
+  this->UpdateUlMCS(ul_mcs_index);
+}
+
+void MacUtils::UpdateUlMCS(size_t ul_mcs_index) {
+  ul_mcs_index_ = ul_mcs_index;
+  ul_mod_order_bits_ = GetModOrderBits(ul_mcs_index_);
+  ul_modulation_ = MapModToStr(ul_mod_order_bits_);
+  ul_code_rate_ = GetCodeRate(ul_mcs_index_);
   InitModulationTable(this->ul_mod_table_, ul_mod_order_bits_);
 
   // TODO: find the optimal base_graph
-  uint16_t base_graph = ul_mcs.value("base_graph", 1);
-  bool early_term = ul_mcs.value("earlyTermination", true);
-  int16_t max_decoder_iter = ul_mcs.value("decoderIter", 5);
+  const uint16_t base_graph = 1;
+  const bool early_term = true;
+  const int16_t max_decoder_iter = 5;
 
   size_t zc = SelectZc(base_graph, ul_code_rate_, ul_mod_order_bits_,
                        ul_ofdm_data_num_, kCbPerSymbol, "uplink");
@@ -236,34 +258,41 @@ void MacUtils::UpdateUlMCS(const json& ul_mcs) {
 
 void MacUtils::UpdateDlMCS(const json& dl_mcs) {
   dl_mcs_json_ = dl_mcs;
+  size_t dl_mcs_index = SIZE_MAX;
   if (dl_mcs.find("mcs_index") == dl_mcs.end()) {
-    dl_modulation_ = dl_mcs.value("modulation", "16QAM");
-    dl_mod_order_bits_ = kModulStringMap.at(dl_modulation_);
+    auto dl_modulation = dl_mcs.value("modulation", "16QAM");
+    auto dl_mod_order_bits = kModulStringMap.at(dl_modulation);
 
     double dl_code_rate_usr = dl_mcs.value("code_rate", 0.333);
     size_t code_rate_int =
         static_cast<size_t>(std::round(dl_code_rate_usr * 1024.0));
-    dl_mcs_index_ = CommsLib::GetMcsIndex(dl_mod_order_bits_, code_rate_int);
-    dl_code_rate_ = GetCodeRate(dl_mcs_index_);
-    if (dl_code_rate_ / 1024.0 != dl_code_rate_usr) {
+    dl_mcs_index = CommsLib::GetMcsIndex(dl_mod_order_bits, code_rate_int);
+    size_t dl_code_rate = GetCodeRate(dl_mcs_index);
+    if (dl_code_rate / 1024.0 != dl_code_rate_usr) {
       AGORA_LOG_WARN(
           "Rounded the user-defined downlink code rate to the closest standard "
           "rate %zu/1024.\n",
-          dl_code_rate_);
+          dl_code_rate);
     }
   } else {
     // 16QAM, 340/1024
-    dl_mcs_index_ = dl_mcs.value("mcs_index", kDefaultMcsIndex);
-    dl_mod_order_bits_ = GetModOrderBits(dl_mcs_index_);
-    dl_modulation_ = MapModToStr(dl_mod_order_bits_);
-    dl_code_rate_ = GetCodeRate(dl_mcs_index_);
+    dl_mcs_index = dl_mcs.value("mcs_index", kDefaultMcsIndex);
   }
+  this->UpdateDlMCS(dl_mcs_index);
+}
+
+void MacUtils::UpdateDlMCS(size_t dl_mcs_index) {
+  // 16QAM, 340/1024
+  dl_mcs_index_ = dl_mcs_index;
+  dl_mod_order_bits_ = GetModOrderBits(dl_mcs_index_);
+  dl_modulation_ = MapModToStr(dl_mod_order_bits_);
+  dl_code_rate_ = GetCodeRate(dl_mcs_index_);
   InitModulationTable(this->dl_mod_table_, dl_mod_order_bits_);
 
   // TODO: find the optimal base_graph
-  uint16_t base_graph = dl_mcs.value("base_graph", 1);
-  bool early_term = dl_mcs.value("earlyTermination", true);
-  int16_t max_decoder_iter = dl_mcs.value("decoderIter", 5);
+  const uint16_t base_graph = 1;
+  const bool early_term = true;
+  const int16_t max_decoder_iter = 5;
 
   size_t zc = SelectZc(base_graph, dl_code_rate_, dl_mod_order_bits_,
                        dl_ofdm_data_num_, kCbPerSymbol, "downlink");

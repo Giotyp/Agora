@@ -34,7 +34,7 @@ void MasterToWorkerDynamicMaster(
   for (size_t bs_ant_idx = 0; bs_ant_idx < kModTestNum; bs_ant_idx++) {
     nlohmann::json ul_mcs_params = mac->Params().GetMcsJson(Direction::kUplink);
     ul_mcs_params["mcs_index"] = kMCSIndices[bs_ant_idx];
-    mac->Params().UpdateUlMacParams(ul_mcs_params);
+    mac->Params().UpdateUlMcsParams(ul_mcs_params);
     for (size_t i = 0; i < kMaxTestNum; i++) {
       uint32_t frame_id =
           i / (cfg->DemulEventsPerSymbol() * cfg->Frame().NumULSyms()) +

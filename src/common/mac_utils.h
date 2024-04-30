@@ -22,8 +22,12 @@ class MacUtils {
 
   void SetMacParams(const nlohmann::json& ul_mcs_json,
                     const nlohmann::json& dl_mcs_json, bool verbose = false);
-  void UpdateUlMacParams(const nlohmann::json& ul_mcs_json);
-  void UpdateDlMacParams(const nlohmann::json& dl_mcs_json);
+  void UpdateUlMcsParams(const nlohmann::json& ul_mcs_json);
+  void UpdateUlMcsParams(size_t ul_mcs_index);
+  void UpdateDlMcsParams(const nlohmann::json& dl_mcs_json);
+  void UpdateDlMcsParams(size_t dl_mcs_index);
+  void UpdateUlMacParams();
+  void UpdateDlMacParams();
   inline nlohmann::json GetMcsJson(Direction dir) {
     return dir == Direction::kUplink ? this->ul_mcs_json_ : this->dl_mcs_json_;
   }
@@ -121,7 +125,9 @@ class MacUtils {
   nlohmann::json Parse(const nlohmann::json& in_json,
                        const std::string& json_handle);
   void UpdateUlMCS(const json& ul_mcs);
+  void UpdateUlMCS(size_t ul_mcs_index);
   void UpdateDlMCS(const json& dl_mcs);
+  void UpdateDlMCS(size_t dl_mcs_index);
   void UpdateCtrlMCS();
   void DumpMcsInfo();
   // Number of code blocks per OFDM symbol

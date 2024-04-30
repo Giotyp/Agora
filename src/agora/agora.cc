@@ -1041,7 +1041,7 @@ void Agora::HandleEventFft(size_t tag) {
 void Agora::UpdateRanConfig(RanConfig rc) {
   auto ul_mcs_params = mac_sched_->Params().GetMcsJson(Direction::kUplink);
   ul_mcs_params["mcs_index"] = rc.mcs_index_;
-  mac_sched_->Params().UpdateUlMacParams(ul_mcs_params);
+  mac_sched_->Params().UpdateUlMcsParams(ul_mcs_params);
 }
 
 void Agora::UpdateRxCounters(size_t frame_id, size_t symbol_id) {
