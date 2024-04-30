@@ -66,8 +66,22 @@ void* MacReceiver::LoopRecv(size_t tid) {
       kMacRxAddress, phy_port_ + ue_id, kSockBufSize);
 
   std::unique_ptr<UDPClient> udp_streamer;
+  std::ofstream create_file;
   if (enable_udp_output_) {
     udp_streamer = std::make_unique<UDPClient>(kMacTxAddress, kMacTxPort);
+  } else {
+    std::string data_filename =
+        TOSTRING(PROJECT_DIRECTORY) +
+        std::string("/files/experiment/rx_ul_increment_file.bin");
+    AGORA_LOG_INFO(
+        "Generating test binary file for user uplink %s.  Frames: "
+        "%zu, Bytes per frame: %zu\n",
+        data_filename.c_str(), cfg_->FramesToTest(), data_bytes_);
+
+    create_file.open(
+        data_filename,
+        (std::ofstream::out | std::ofstream::binary | std::ofstream::trunc));
+    assert(create_file.is_open() == true);
   }
 
   udp_server->MakeBlocking(1);
@@ -89,6 +103,8 @@ void* MacReceiver::LoopRecv(size_t tid) {
       if (enable_udp_output_) {
         udp_streamer->Send(udp_dest_address_, udp_dest_port_ + ue_id,
                            &rx_buffer[0u], recvlen);
+      } else {
+        create_file.write(reinterpret_cast<char*>(rx_buffer), data_bytes_);
       }
 
       if (kDebugMacReceiver) {
@@ -106,6 +122,9 @@ void* MacReceiver::LoopRecv(size_t tid) {
             tid, recvlen, data_bytes_);
       }
     }
+  }
+  if (!enable_udp_output_) {
+    create_file.close();
   }
   delete[] rx_buffer;
   AGORA_LOG_INFO("MacReceiver[%zu]: Finished\n", tid);
