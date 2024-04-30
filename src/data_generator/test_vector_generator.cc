@@ -237,66 +237,7 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
     }
 
     if (kOutputUlScData) {
-      std::vector<std::vector<std::vector<std::vector<std::vector<uint8_t>>>>>
-          ul_ofdm_data(
-              cfg->UeNum(),
-              std::vector<std::vector<std::vector<std::vector<uint8_t>>>>(
-                  kOutputFrameNum,
-                  std::vector<std::vector<std::vector<uint8_t>>>(
-                      cfg->Frame().NumULSyms(),
-                      std::vector<std::vector<uint8_t>>(
-                          cfg->NumUeChannels(),
-                          std::vector<uint8_t>(cfg->OfdmDataNum())))));
-      for (size_t n = 0; n < num_ul_codeblocks; n++) {
-        const size_t cl_sdr = (n % cfg->UeNum());
-        const size_t ul_slot =
-            (n / cfg->UeAntNum()) + cfg->Frame().ClientUlPilotSymbols();
-        const size_t cl_sdr_ch = (n % cfg->UeAntNum()) % cfg->NumUeChannels();
-        std::vector<uint8_t> odfm_symbol(cfg->OfdmDataNum());
-        AdaptBitsForMod(
-            reinterpret_cast<const uint8_t*>(ul_encoded_codewords.at(n).data()),
-            odfm_symbol.data(),
-            cfg->MacParams().LdpcConfig(Direction::kUplink).NumEncodedBytes(),
-            cfg->MacParams().ModOrderBits(Direction::kUplink));
-        for (size_t f = 0; f < kOutputFrameNum; f++) {
-          ul_ofdm_data.at(cl_sdr).at(f).at(ul_slot).at(cl_sdr_ch) = odfm_symbol;
-        }
-      }
-      for (size_t i = 0; i < cfg->UeNum(); i++) {
-        const std::string filename_input =
-            directory + kUlModDataPrefix +
-            cfg->MacParams().Modulation(Direction::kUplink) + "_" +
-            std::to_string(cfg->OfdmDataNum()) + "_" +
-            std::to_string(cfg->OfdmCaNum()) + "_" +
-            std::to_string(kOfdmSymbolPerSlot) + "_" +
-            std::to_string(cfg->Frame().NumULSyms()) + "_" +
-            std::to_string(kOutputFrameNum) + "_" + cfg->UeChannel() + "_" +
-            std::to_string(i) + ".bin";
-        AGORA_LOG_INFO("Saving uplink sc bits to %s\n", filename_input.c_str());
-        auto* fp_tx_b = std::fopen(filename_input.c_str(), "wb");
-        if (fp_tx_b == nullptr) {
-          throw std::runtime_error(
-              "DataGenerator: Failed to create ul sc bits file");
-        }
-        for (size_t f = 0; f < kOutputFrameNum; f++) {
-          for (size_t u = 0; u < cfg->Frame().NumULSyms(); u++) {
-            for (size_t h = 0; h < cfg->NumUeChannels(); h++) {
-              const auto write_status =
-                  std::fwrite(ul_ofdm_data.at(i).at(f).at(u).at(h).data(),
-                              sizeof(uint8_t), cfg->OfdmDataNum(), fp_tx_b);
-              if (write_status != cfg->OfdmDataNum()) {
-                throw std::runtime_error(
-                    "DataGenerator: Failed to write ul sc bits file");
-              }
-            }
-          }
-        }
-        const auto close_status = std::fclose(fp_tx_b);
-        if (close_status != 0) {
-          throw std::runtime_error(
-              "DataGenerator: Failed to close ul sc bits file");
-        }
-      }
+      DataGenerator::WriteUlScDataToFile(cfg, directory, ul_encoded_codewords);
     }
 
     // Modulate the encoded codewords
