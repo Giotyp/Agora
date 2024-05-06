@@ -13,24 +13,9 @@ static constexpr size_t kCsiSubcarrierIdx = 0;
 MacScheduler::MacScheduler(Config* const cfg)
     : cfg_(cfg), params_(cfg->MacParams()) {
   scheduler_model_ = std::move(SchedulerModel::CreateSchedulerModel(cfg_));
-  const size_t num_groups = scheduler_model_->NumGroups();
-
-  ul_mcs_buffer_.Calloc(num_groups, cfg_->UeAntNum(),
-                        Agora_memory::Alignment_t::kAlign64);
-  dl_mcs_buffer_.Calloc(num_groups, cfg_->UeAntNum(),
-                        Agora_memory::Alignment_t::kAlign64);
-  for (size_t gp = 0u; gp < num_groups; gp++) {
-    for (size_t ue = 0; ue < cfg_->UeAntNum(); ue++) {
-      ul_mcs_buffer_[gp][ue] = params_.McsIndex(Direction::kUplink);
-      dl_mcs_buffer_[gp][ue] = params_.McsIndex(Direction::kDownlink);
-    }
-  }
 }
 
-MacScheduler::~MacScheduler() {
-  ul_mcs_buffer_.Free();
-  dl_mcs_buffer_.Free();
-}
+MacScheduler::~MacScheduler() {}
 
 size_t MacScheduler::ScheduledUeIndex(size_t frame_id, size_t sc_id,
                                       size_t sched_ue_id) {
@@ -54,6 +39,14 @@ size_t MacScheduler::UeScheduleIndex(size_t sched_id) {
   return scheduler_model_->UeScheduleIndex(sched_id);
 }
 
+size_t MacScheduler::SelectedUlMcs(size_t frame_id, size_t ue_id) {
+  return scheduler_model_->SelectedUlMcs(frame_id, ue_id);
+}
+
+size_t MacScheduler::SelectedDlMcs(size_t frame_id, size_t ue_id) {
+  return scheduler_model_->SelectedDlMcs(frame_id, ue_id);
+}
+
 void MacScheduler::UpdateScheduler(size_t frame_id) {
   scheduler_model_->Update(frame_id, csi_, snr_per_ue_);
 }
@@ -68,12 +61,9 @@ void MacScheduler::UpdateCSI(size_t cur_sc_id, const arma::cx_fmat& csi_in) {
   }
 }
 
-size_t MacScheduler::ScheduledUeUlMcs(size_t /*frame_id*/, size_t ue_id) const {
-  const size_t gp = scheduler_model_->SelectedGroup();
-  return ul_mcs_buffer_.At(gp)[ue_id];
-}
-
-size_t MacScheduler::ScheduledUeDlMcs(size_t /*frame_id*/, size_t ue_id) const {
-  const size_t gp = scheduler_model_->SelectedGroup();
-  return dl_mcs_buffer_.At(gp)[ue_id];
+void MacScheduler::UpdateMcsParams(size_t frame_id) {
+  size_t ul_mcs = this->SelectedUlMcs(frame_id, 0u);
+  size_t dl_mcs = this->SelectedDlMcs(frame_id, 0u);
+  this->Params().UpdateUlMcsParams(ul_mcs);
+  this->Params().UpdateDlMcsParams(dl_mcs);
 }

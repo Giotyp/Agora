@@ -1,6 +1,8 @@
 #include "custom_schedule.h"
 
+#include "data_generator.h"
 #include "logger.h"
+#include "utils.h"
 
 CustomSchedule::CustomSchedule(Config* const cfg) : SchedulerModel(cfg) {
   num_groups_ = cfg_->FramesToTest();
@@ -9,39 +11,37 @@ CustomSchedule::CustomSchedule(Config* const cfg) : SchedulerModel(cfg) {
   ue_num_array_.resize(num_groups_);
   const std::string directory =
       TOSTRING(PROJECT_DIRECTORY) "/files/experiment/";
-  static const std::string kFilename = directory + "ue_schedule_map_" +
-                                       std::to_string(cfg_->UeAntNum()) +
-                                       ".bin";
+  static const std::string kFilename =
+      directory + kUeSchedulePrefix + std::to_string(cfg_->UeAntNum());
   AGORA_LOG_INFO(
       "Custom MAC Scheduler: Reading scheduled map of UEs across frames "
       "from %s\n",
-      kFilename.c_str());
-
-  FILE* fp = std::fopen(kFilename.c_str(), "rb");
-  RtAssert(fp != nullptr, "Failed to open UE schedule file");
-
-  const size_t actual_count =
-      std::fread(&ue_map_array_.at(0), sizeof(uint8_t), n_items, fp);
-
-  if (actual_count != n_items) {
-    std::fprintf(
-        stderr,
-        "Custom MAC Scheduler: Failed to read scheduled UEs file %s. expected "
-        "%zu number of UE entries but read %zu. Errno %s\n",
-        kFilename.c_str(), n_items, actual_count, strerror(errno));
-    throw std::runtime_error("Agora: Failed to read scheduled UEs file");
-  }
+      std::string(kFilename + "ue.bin").c_str());
+  Utils::ReadBinaryFile(kFilename + "ue.bin", sizeof(uint8_t), n_items, 0,
+                        ue_map_array_.data());
+  std::vector<uint8_t> ul_mcs(num_groups_, 0);
+  Utils::ReadBinaryFile(kFilename + "ue_ul_mcs.bin", sizeof(uint8_t),
+                        num_groups_, 0, ul_mcs.data());
+  std::vector<uint8_t> dl_mcs(num_groups_, 0);
+  Utils::ReadBinaryFile(kFilename + "ue_dl_mcs.bin", sizeof(uint8_t),
+                        num_groups_, 0, dl_mcs.data());
   schedule_buffer_.Calloc(num_groups_, cfg_->UeAntNum() * cfg_->OfdmDataNum(),
                           Agora_memory::Alignment_t::kAlign64);
   schedule_buffer_index_.Calloc(num_groups_,
                                 cfg_->UeAntNum() * cfg_->OfdmDataNum(),
                                 Agora_memory::Alignment_t::kAlign64);
+  ul_mcs_buffer_.Calloc(num_groups_, cfg_->UeAntNum(),
+                        Agora_memory::Alignment_t::kAlign64);
+  dl_mcs_buffer_.Calloc(num_groups_, cfg_->UeAntNum(),
+                        Agora_memory::Alignment_t::kAlign64);
   for (size_t gp = 0u; gp < num_groups_; gp++) {
     for (size_t ue = 0; ue < cfg_->UeAntNum(); ue++) {
       uint8_t sched_bit = ue_map_array_.at(gp * cfg_->UeAntNum() + ue);
       if (sched_bit == 1) {
         ue_num_array_.at(gp)++;
       }
+      ul_mcs_buffer_[gp][ue] = ul_mcs.at(gp);
+      dl_mcs_buffer_[gp][ue] = dl_mcs.at(gp);
     }
     size_t cnt = 0;
     size_t ue_sched_id = 0;
@@ -102,4 +102,12 @@ size_t CustomSchedule::UeScheduleIndex(size_t sched_id) {
     return -1;
   }
   return it - ue_sched_set_.begin();
+}
+
+size_t CustomSchedule::SelectedUlMcs(size_t frame_id, size_t ue_id) {
+  return ul_mcs_buffer_[frame_id][ue_id];
+}
+
+size_t CustomSchedule::SelectedDlMcs(size_t frame_id, size_t ue_id) {
+  return dl_mcs_buffer_[frame_id][ue_id];
 }
