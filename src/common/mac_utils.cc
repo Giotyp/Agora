@@ -54,23 +54,31 @@ void MacUtils::SetMacParams(const nlohmann::json& ul_mcs_json,
 }
 
 void MacUtils::UpdateUlMcsParams(const nlohmann::json& ul_mcs_json) {
-  this->UpdateUlMCS(ul_mcs_json);
-  this->UpdateUlMacParams();
+  if (frame_.NumUlDataSyms() > 0) {
+    this->UpdateUlMCS(ul_mcs_json);
+    this->UpdateUlMacParams();
+  }
 }
 
 void MacUtils::UpdateUlMcsParams(size_t ul_mcs_index) {
-  this->UpdateUlMCS(ul_mcs_index);
-  this->UpdateUlMacParams();
+  if (frame_.NumUlDataSyms() > 0) {
+    this->UpdateUlMCS(ul_mcs_index);
+    this->UpdateUlMacParams();
+  }
 }
 
 void MacUtils::UpdateDlMcsParams(const nlohmann::json& dl_mcs_json) {
-  this->UpdateDlMCS(dl_mcs_json);
-  this->UpdateDlMacParams();
+  if (frame_.NumDlDataSyms() > 0) {
+    this->UpdateDlMCS(dl_mcs_json);
+    this->UpdateDlMacParams();
+  }
 }
 
 void MacUtils::UpdateDlMcsParams(size_t dl_mcs_index) {
-  this->UpdateDlMCS(dl_mcs_index);
-  this->UpdateDlMacParams();
+  if (frame_.NumDlDataSyms() > 0) {
+    this->UpdateDlMCS(dl_mcs_index);
+    this->UpdateDlMacParams();
+  }
 }
 
 void MacUtils::UpdateUlMacParams() {

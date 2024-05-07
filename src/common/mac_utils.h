@@ -47,6 +47,10 @@ class MacUtils {
     return dir == Direction::kUplink ? this->ul_num_padding_bytes_per_cb_
                                      : this->dl_num_padding_bytes_per_cb_;
   }
+  inline size_t NumBytesPerSymbol(Direction dir) const {
+    return dir == Direction::kUplink ? this->ul_data_bytes_num_persymbol_
+                                     : this->dl_data_bytes_num_persymbol_;
+  }
   inline size_t MacDataBytesNumPerframe(Direction dir) const {
     return dir == Direction::kUplink ? this->ul_mac_data_bytes_num_perframe_
                                      : this->dl_mac_data_bytes_num_perframe_;
