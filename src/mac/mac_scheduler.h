@@ -35,6 +35,8 @@ class MacScheduler {
 
   void UpdateMcsParams(size_t frame_id);
   inline MacUtils& Params() { return this->params_; }
+  size_t NumGroups();
+  size_t SelectedGroup();
 
  private:
   Config* const cfg_;
@@ -43,7 +45,6 @@ class MacScheduler {
   arma::cx_fmat csi_;
 
   std::unique_ptr<SchedulerModel> scheduler_model_;
-
   MacUtils params_;
 };
 

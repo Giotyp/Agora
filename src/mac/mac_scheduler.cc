@@ -51,6 +51,12 @@ void MacScheduler::UpdateScheduler(size_t frame_id) {
   scheduler_model_->Update(frame_id, csi_, snr_per_ue_);
 }
 
+size_t MacScheduler::NumGroups() { return scheduler_model_->NumGroups(); }
+
+size_t MacScheduler::SelectedGroup() {
+  return scheduler_model_->SelectedGroup();
+}
+
 void MacScheduler::UpdateSNR(std::vector<float> snr_per_ue) {
   snr_per_ue_ = std::move(snr_per_ue);
 }

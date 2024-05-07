@@ -23,11 +23,14 @@ class CustomSchedule : public SchedulerModel {
   size_t UeScheduleIndex(size_t sched_id) final;
   size_t SelectedUlMcs(size_t frame_id, size_t ue_id) final;
   size_t SelectedDlMcs(size_t frame_id, size_t ue_id) final;
+  void Update(size_t frame_id, const arma::cx_fmat&,
+              const std::vector<float>&) final;
 
  private:
   std::vector<uint8_t> ue_map_array_;
   std::vector<uint8_t> ue_num_array_;
   std::vector<size_t> ue_sched_set_;
+  std::vector<size_t> sched_id_array_;
 };
 
 #endif  //CUSTOM_SCHEDULE_H_

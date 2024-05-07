@@ -612,8 +612,9 @@ void Agora::Start() {
           const size_t frame_id = rx_mac_tag_t(event.tags_[0u]).frame_id_;
           // Assert ue_id is in ue_list
           const size_t ue_id = rx_mac_tag_t(event.tags_[0u]).tid_;
-
           auto ue_list = mac_sched_->ScheduledUeList(frame_id, 0u);
+          RtAssert(arma::find(ue_list == ue_id).is_empty() == false,
+                   "Indicated UE index is not scheduled in this frame!");
           const bool last_ue = this->mac_to_phy_counters_.CompleteTask(
               frame_id, 0, ue_list.n_elem);
           if (last_ue == true) {
@@ -1066,6 +1067,7 @@ void Agora::UpdateRxCounters(size_t frame_id, size_t symbol_id) {
   }
   // Receive first packet in a frame
   if (rx_counters_.num_pkts_.at(frame_slot) == 0) {
+    mac_sched_->UpdateMcsParams(frame_id);
     // schedule this frame's encoding
     // Defer the schedule.  If frames are already deferred or the current
     // received frame is too far off

@@ -384,6 +384,7 @@ void PhyUe::Start() {
                                                  frame_id, frame_id - 1),
                   rx_counters_.num_pkts_.at(prev_frame_slot));
             }
+            mac_sched_->UpdateMcsParams(frame_id);
           }
 
           if (config_->Frame().IsDlPilot(symbol_id)) {

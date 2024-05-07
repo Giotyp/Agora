@@ -35,21 +35,24 @@ DoEncode::DoEncode(Config* in_config, int in_tid, Direction dir,
   encoded_buffer_temp_ = static_cast<int8_t*>(Agora_memory::PaddedAlignedAlloc(
       Agora_memory::Alignment_t::kAlign64, LdpcEncodingEncodedBufSize(bg, zc)));
   assert(encoded_buffer_temp_ != nullptr);
+  if (cfg_->Frame().NumDlDataSyms() != 0) {
+    scrambler_buffer_bytes_ = cfg_->MacParams().MaxPacketBytes(dir) +
+                              cfg_->MacParams().NumPaddingBytesPerCb(dir);
 
-  scrambler_buffer_bytes_ = mac_sched_->Params().NumBytesPerCb(dir) +
-                            mac_sched_->Params().NumPaddingBytesPerCb(dir);
+    scrambler_buffer_ = static_cast<int8_t*>(Agora_memory::PaddedAlignedAlloc(
+        Agora_memory::Alignment_t::kAlign64, scrambler_buffer_bytes_));
+    std::memset(scrambler_buffer_, 0u, scrambler_buffer_bytes_);
 
-  scrambler_buffer_ = static_cast<int8_t*>(Agora_memory::PaddedAlignedAlloc(
-      Agora_memory::Alignment_t::kAlign64, scrambler_buffer_bytes_));
-  std::memset(scrambler_buffer_, 0u, scrambler_buffer_bytes_);
-
-  assert(scrambler_buffer_ != nullptr);
+    assert(scrambler_buffer_ != nullptr);
+  }
 }
 
 DoEncode::~DoEncode() {
   std::free(parity_buffer_);
   std::free(encoded_buffer_temp_);
-  std::free(scrambler_buffer_);
+  if (cfg_->Frame().NumDlDataSyms() != 0) {
+    std::free(scrambler_buffer_);
+  }
 }
 
 EventData DoEncode::Launch(size_t tag) {
