@@ -20,15 +20,16 @@ class MacMultiRingBuffer {
     tail = (tail + n_items) % kMacBuffSizeMax;
   }
 
-  void Pop(std::byte* item, size_t n_items, size_t buf_id) {
+  bool Pop(std::byte* item, size_t n_items, size_t buf_id) {
     if (IsEmpty(n_items, buf_id) == true) {
       AGORA_LOG_ERROR("Buffer Id %zu is empty. Pop failed!\n", buf_id);
-      return;
+      return false;
     }
     size_t& head = head_.at(buf_id);
     std::memcpy(item, &r_buff_.at(buf_id).at(head), n_items);
     //r_buff_.at(buf_id).at(head) = empty_;
     head = (head + n_items) % kMacBuffSizeMax;
+    return true;
   }
 
   size_t BuffSize(size_t buf_id) {
