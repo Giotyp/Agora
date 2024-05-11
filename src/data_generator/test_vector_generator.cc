@@ -246,22 +246,21 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
   const size_t num_ul_pilots = cfg->Frame().ClientUlPilotSymbols();
   const size_t ul_pkt_per_frame =
       mac_params.MacPacketsPerframe(Direction::kUplink);
-  const size_t dl_pkt_per_frame =
-      mac_params.MacPacketsPerframe(Direction::kDownlink);
   const size_t num_ul_max_bytes =
       mac_params.MaxPacketBytes(Direction::kUplink) * ul_pkt_per_frame;
+  const size_t dl_pkt_per_frame =
+      mac_params.MacPacketsPerframe(Direction::kDownlink);
   const size_t num_dl_max_bytes =
       mac_params.MaxPacketBytes(Direction::kDownlink) * dl_pkt_per_frame;
   for (size_t sched = 0; sched < sched_ue_set.size(); sched++) {
     auto sched_id = sched_ue_set.at(sched);
     // Generate the information buffers (MAC Packets) and LDPC-encoded buffers
-    mac_params.UpdateUlMcsParams(sched_ul_mcs.at(sched));
-    const size_t ul_cb_bytes = mac_params.NumBytesPerCb(Direction::kUplink);
-    LDPCconfig ul_ldpc_config = mac_params.LdpcConfig(Direction::kUplink);
-    const size_t num_ul_mac_bytes =
-        mac_params.MacBytesNumPerframe(Direction::kUplink);
-    std::vector<std::vector<complex_float>> pre_ifft_data_syms;
-    if (num_ul_mac_bytes > 0) {
+    if (cfg->Frame().NumULSyms() != 0) {
+      mac_params.UpdateUlMcsParams(sched_ul_mcs.at(sched));
+      const size_t ul_cb_bytes = mac_params.NumBytesPerCb(Direction::kUplink);
+      LDPCconfig ul_ldpc_config = mac_params.LdpcConfig(Direction::kUplink);
+      const size_t num_ul_mac_bytes =
+          mac_params.MacBytesNumPerframe(Direction::kUplink);
       std::vector<std::vector<int8_t>> ul_mac_info(cfg->UeAntNum());
       AGORA_LOG_FRAME("Total number of uplink MAC bytes: %zu\n",
                       num_ul_mac_bytes);
@@ -362,6 +361,7 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
 
       // Place modulated uplink data codewords into central IFFT bins
       RtAssert(ul_ldpc_config.NumBlocksInSymbol() == 1);  // TODO: Assumption
+      std::vector<std::vector<complex_float>> pre_ifft_data_syms;
       pre_ifft_data_syms.resize(cfg->UeAntNum() * cfg->Frame().NumUlDataSyms());
       for (size_t i = 0; i < pre_ifft_data_syms.size(); i++) {
         pre_ifft_data_syms.at(i) =
@@ -426,22 +426,21 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
               i != 0 || sched != 0);  //Do not append in the first write
         }
       }
-    }
-
-    // Populate the UL symbols
-    for (size_t i = 0; i < cfg->Frame().NumULSyms(); i++) {
-      const size_t sym_id = cfg->Frame().GetULSymbol(i);
-      for (size_t j = 0; j < cfg->UeAntNum(); j++) {
-        if (i < cfg->Frame().ClientUlPilotSymbols()) {
-          std::memcpy(tx_data_all_symbols[sym_id] + (j * cfg->OfdmCaNum()) +
-                          cfg->OfdmDataStart(),
-                      ue_specific_pilot[j],
-                      cfg->OfdmDataNum() * sizeof(complex_float));
-        } else {
-          const size_t k = i - cfg->Frame().ClientUlPilotSymbols();
-          std::memcpy(tx_data_all_symbols[sym_id] + (j * cfg->OfdmCaNum()),
-                      &pre_ifft_data_syms.at(k * cfg->UeAntNum() + j).at(0),
-                      cfg->OfdmCaNum() * sizeof(complex_float));
+      // Populate the UL symbols
+      for (size_t i = 0; i < cfg->Frame().NumULSyms(); i++) {
+        const size_t sym_id = cfg->Frame().GetULSymbol(i);
+        for (size_t j = 0; j < cfg->UeAntNum(); j++) {
+          if (i < cfg->Frame().ClientUlPilotSymbols()) {
+            std::memcpy(tx_data_all_symbols[sym_id] + (j * cfg->OfdmCaNum()) +
+                            cfg->OfdmDataStart(),
+                        ue_specific_pilot[j],
+                        cfg->OfdmDataNum() * sizeof(complex_float));
+          } else {
+            const size_t k = i - cfg->Frame().ClientUlPilotSymbols();
+            std::memcpy(tx_data_all_symbols[sym_id] + (j * cfg->OfdmCaNum()),
+                        &pre_ifft_data_syms.at(k * cfg->UeAntNum() + j).at(0),
+                        cfg->OfdmCaNum() * sizeof(complex_float));
+          }
         }
       }
     }
@@ -507,14 +506,15 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
     /* ------------------------------------------------
    * Generate data for downlink test
    * ------------------------------------------------ */
-    mac_params.UpdateDlMcsParams(sched_dl_mcs.at(sched));
-    const LDPCconfig dl_ldpc_config =
-        mac_params.LdpcConfig(Direction::kDownlink);
-    const size_t dl_cb_bytes = mac_params.NumBytesPerCb(Direction::kDownlink);
-    const size_t num_dl_mac_bytes =
-        mac_params.MacBytesNumPerframe(Direction::kDownlink);
-    const size_t num_dl_pilots = cfg->Frame().ClientDlPilotSymbols();
-    if (num_dl_mac_bytes > 0) {
+    if (cfg->Frame().NumDLSyms() != 0) {
+      mac_params.UpdateDlMcsParams(sched_dl_mcs.at(sched));
+      const LDPCconfig dl_ldpc_config =
+          mac_params.LdpcConfig(Direction::kDownlink);
+      const size_t dl_cb_bytes = mac_params.NumBytesPerCb(Direction::kDownlink);
+      const size_t num_dl_mac_bytes =
+          mac_params.MacBytesNumPerframe(Direction::kDownlink);
+      const size_t num_dl_pilots = cfg->Frame().ClientDlPilotSymbols();
+      AGORA_LOG_INFO("num_dl_mac_bytes %zu\n", num_dl_mac_bytes);
       std::vector<std::vector<int8_t>> dl_mac_info(cfg->UeAntNum());
       AGORA_LOG_FRAME("Total number of downlink MAC bytes: %zu\n",
                       num_dl_mac_bytes);

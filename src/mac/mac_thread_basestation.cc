@@ -47,14 +47,16 @@ MacThreadBaseStation::MacThreadBaseStation(
   client_.dl_bits_buffer_status_ = dl_bits_buffer_status;
 
   server_.n_filled_in_frame_.fill(0);
-  for (size_t ue_ant = 0; ue_ant < cfg_->UeAntTotal(); ue_ant++) {
-    server_.data_size_.emplace_back(
-        std::vector<size_t>(cfg->Frame().NumUlDataSyms()));
-  }
+  if (cfg->Frame().NumUlDataSyms()) {
+    for (size_t ue_ant = 0; ue_ant < cfg_->UeAntTotal(); ue_ant++) {
+      server_.data_size_.emplace_back(
+          std::vector<size_t>(cfg->Frame().NumUlDataSyms()));
+    }
 
-  // The frame data will hold the data coming from the Phy (Received)
-  for (auto& v : server_.frame_data_) {
-    v.resize(cfg->MacParams().MacDataBytesNumPerframe(Direction::kUplink));
+    // The frame data will hold the data coming from the Phy (Received)
+    for (auto& v : server_.frame_data_) {
+      v.resize(cfg->MacParams().MacDataBytesNumPerframe(Direction::kUplink));
+    }
   }
 
   const size_t udp_pkt_len =

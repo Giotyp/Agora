@@ -568,8 +568,9 @@ void Sender::InitUesFromFile() {
 
   const std::string directory =
       TOSTRING(PROJECT_DIRECTORY) "/files/experiment/";
-  static const std::string kFilename =
-      directory + kUeSchedulePrefix + std::to_string(cfg_->UeAntNum()) + ".bin";
+  static const std::string kFilename = directory + kUeSchedulePrefix +
+                                       std::to_string(cfg_->UeAntNum()) +
+                                       "ue.bin";
   AGORA_LOG_INFO(
       "Custom MAC Scheduler: Reading binary map of scheduled UEs across frames "
       "from %s\n",
