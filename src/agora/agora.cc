@@ -562,9 +562,12 @@ void Agora::Start() {
         case EventType::kDecode: {
           const size_t frame_id = gen_tag_t(event.tags_[0]).frame_id_;
           const size_t symbol_id = gen_tag_t(event.tags_[0]).symbol_id_;
-
-          const bool last_decode_task =
-              this->decode_counters_.CompleteTask(frame_id, symbol_id);
+          auto ue_list = mac_sched_->ScheduledUeList(frame_id, 0u);
+          size_t n_code_blk_per_sym = mac_sched_->Params()
+                                          .LdpcConfig(Direction::kUplink)
+                                          .NumBlocksInSymbol();
+          const bool last_decode_task = this->decode_counters_.CompleteTask(
+              frame_id, symbol_id, ue_list.n_elem * n_code_blk_per_sym);
           if (last_decode_task == true) {
             ScheduleUsers(EventType::kPacketToMac, frame_id, symbol_id);
             stats_->PrintPerSymbolDone(
