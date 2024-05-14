@@ -74,7 +74,7 @@ void MacUtils::UpdateDlMcsParams(size_t dl_mcs_index) {
 
 void MacUtils::UpdateUlMacParams() {
   ul_num_bytes_per_cb_ =
-      (frame_.NumUlDataSyms() > 0) ? ul_ldpc_config_.NumCbLen() / 8 : 0;
+      (frame_.NumUlDataSyms() > 0) ? (ul_ldpc_config_.NumCbLen() / 8) : 0;
   ul_num_padding_bytes_per_cb_ =
       Roundup<64>(ul_num_bytes_per_cb_) - ul_num_bytes_per_cb_;
   ul_data_bytes_num_persymbol_ =
@@ -119,7 +119,7 @@ void MacUtils::UpdateUlMacParams() {
 
 void MacUtils::UpdateDlMacParams() {
   dl_num_bytes_per_cb_ =
-      (frame_.NumDlDataSyms() > 0) ? dl_ldpc_config_.NumCbLen() / 8 : 0;
+      (frame_.NumDlDataSyms() > 0) ? (dl_ldpc_config_.NumCbLen() / 8) : 0;
   dl_num_padding_bytes_per_cb_ =
       Roundup<64>(dl_num_bytes_per_cb_) - dl_num_bytes_per_cb_;
   dl_data_bytes_num_persymbol_ =

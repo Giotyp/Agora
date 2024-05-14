@@ -23,8 +23,12 @@ RoundRobbin::RoundRobbin(Config* const cfg) : SchedulerModel(cfg) {
         schedule_buffer_index_[gp][(ue - gp) + cfg_->SpatialStreamsNum() * sc] =
             cur_ue;
       }
+    }
+    for (size_t ue = 0; ue < cfg_->UeAntNum(); ue++) {
       ul_mcs_buffer_[gp][ue] = cfg->MacParams().McsIndex(Direction::kUplink);
       dl_mcs_buffer_[gp][ue] = cfg->MacParams().McsIndex(Direction::kDownlink);
+      AGORA_LOG_INFO("UL MCS Init: gp %zu, ue %zu, mcs %zu\n", gp, ue,
+                     ul_mcs_buffer_[gp][ue]);
     }
   }
 }

@@ -518,7 +518,6 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
       const size_t num_dl_mac_bytes =
           mac_params.MacBytesNumPerframe(Direction::kDownlink);
       const size_t num_dl_pilots = cfg->Frame().ClientDlPilotSymbols();
-      AGORA_LOG_INFO("num_dl_mac_bytes %zu\n", num_dl_mac_bytes);
       std::vector<std::vector<int8_t>> dl_mac_info(cfg->UeAntNum());
       AGORA_LOG_FRAME("Total number of downlink MAC bytes: %zu\n",
                       num_dl_mac_bytes);
