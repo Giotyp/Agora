@@ -256,7 +256,9 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
     auto sched_id = sched_ue_set.at(sched);
     // Generate the information buffers (MAC Packets) and LDPC-encoded buffers
     if (cfg->Frame().NumULSyms() != 0) {
-      mac_params.UpdateUlMcsParams(sched_ul_mcs.at(sched));
+      if (cfg->AdaptUes()) {
+        mac_params.UpdateUlMcsParams(sched_ul_mcs.at(sched));
+      }
       const size_t ul_cb_bytes = mac_params.NumBytesPerCb(Direction::kUplink);
       LDPCconfig ul_ldpc_config = mac_params.LdpcConfig(Direction::kUplink);
       const size_t num_ul_mac_bytes =
@@ -507,7 +509,9 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
    * Generate data for downlink test
    * ------------------------------------------------ */
     if (cfg->Frame().NumDLSyms() != 0) {
-      mac_params.UpdateDlMcsParams(sched_dl_mcs.at(sched));
+      if (cfg->AdaptUes()) {
+        mac_params.UpdateDlMcsParams(sched_dl_mcs.at(sched));
+      }
       const LDPCconfig dl_ldpc_config =
           mac_params.LdpcConfig(Direction::kDownlink);
       const size_t dl_cb_bytes = mac_params.NumBytesPerCb(Direction::kDownlink);

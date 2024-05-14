@@ -46,8 +46,8 @@ static void ReadFromFile(const std::string& filename, Table<TableType>& data,
 static void ReadFromFileUl(const std::string& filename, Table<uint8_t>& data,
                            int offset, int ue_num, int num_bytes_per_ue,
                            Config const* const cfg) {
-  ReadFromFile(filename, data, offset, cfg->Frame().NumUlDataSyms(),
-               (num_bytes_per_ue * ue_num), sizeof(uint8_t));
+  ReadFromFile(filename, data, offset, ue_num, num_bytes_per_ue,
+               sizeof(uint8_t));
 }
 
 static void ReadFromFileDl(const std::string& filename, Table<short>& data,
@@ -66,6 +66,8 @@ static unsigned int CheckCorrectnessUl(Config const* const cfg, size_t offset,
   size_t num_uplink_syms = cfg->Frame().NumUlDataSyms();
   size_t ofdm_data_num = cfg->OfdmDataNum();
   size_t ul_pilot_syms = cfg->Frame().ClientUlPilotSymbols();
+  size_t raw_read_block =
+      cfg->MacParams().MaxPacketBytes(Direction::kUplink) * num_uplink_syms;
   size_t spatial_streams_num = spatial_streams.n_elem;
 
   const std::string raw_data_filename = kUlCheckFilePrefix +
@@ -74,12 +76,11 @@ static unsigned int CheckCorrectnessUl(Config const* const cfg, size_t offset,
 
   Table<uint8_t> raw_data;
   Table<uint8_t> output_data;
-  raw_data.Calloc(num_uplink_syms, (ofdm_data_num * ue_num),
-                  Agora_memory::Alignment_t::kAlign64);
-  output_data.Calloc(num_uplink_syms, (ofdm_data_num * spatial_streams_num),
+  raw_data.Calloc(ue_num, raw_read_block, Agora_memory::Alignment_t::kAlign64);
+  output_data.Calloc(spatial_streams_num, num_bytes_per_ue,
                      Agora_memory::Alignment_t::kAlign64);
 
-  ReadFromFileUl(raw_data_filename, raw_data, offset, ue_num, num_bytes_per_ue,
+  ReadFromFileUl(raw_data_filename, raw_data, offset, ue_num, raw_read_block,
                  cfg);
   ReadFromFileUl(kDecodedFilename, output_data, 0, spatial_streams_num,
                  num_bytes_per_ue, cfg);
@@ -92,23 +93,19 @@ static unsigned int CheckCorrectnessUl(Config const* const cfg, size_t offset,
 
   unsigned int error_cnt = 0;
   unsigned int total_count = 0;
-  for (size_t i = 0; i < num_uplink_syms; i++) {
-    for (size_t ue = 0; ue < spatial_streams_num; ue++) {
-      for (size_t j = 0; j < num_bytes_per_ue; j++) {
-        total_count++;
-        size_t offset_in_raw = num_bytes_per_ue * spatial_streams(ue) + j;
-        size_t offset_in_output = num_bytes_per_ue * ue + j;
-        if (raw_data[i][offset_in_raw] != output_data[i][offset_in_output]) {
-          error_cnt++;
-          if (kDebugPrintUlCorr) {
-            std::printf("(%zu, %zu, %zu, %u, %u)\n", i, ue, j,
-                        raw_data[i][offset_in_raw],
-                        output_data[i][offset_in_output]);
-          }
+  for (size_t ss = 0; ss < spatial_streams_num; ss++) {
+    for (size_t j = 0; j < num_bytes_per_ue; j++) {
+      total_count++;
+      size_t ue = spatial_streams(ss);
+      if (raw_data[ue][j] != output_data[ss][j]) {
+        error_cnt++;
+        if (kDebugPrintUlCorr) {
+          std::printf("(%zu, %zu, %zu, %u, %u)\n", ss, ue, j, raw_data[ue][j],
+                      output_data[ss][j]);
         }
       }
-    }  //  for (int ue = 0; ue < ue_num; ue++)
-  }    // for (int i = 0; i < num_uplink_syms; i++)
+    }
+  }
 
   raw_data.Free();
   output_data.Free();
@@ -233,21 +230,17 @@ int main(int argc, char* argv[]) {
     auto ue_list = mac_sched->ScheduledUeList(cfg->FramesToTest() - 1, 0);
     size_t sched_set_id = 0;
     size_t num_bytes_per_ue =
-        cfg->MacParams().NumBytesPerSymbol(Direction::kUplink);
+        cfg->MacParams().MacBytesNumPerframe(Direction::kUplink);
     size_t offset = 0;
-    /*(cfg->MacParams().LdpcConfig(Direction::kUplink).NumCbLen() + 7) >>
-        3 * cfg->MacParams().LdpcConfig(Direction::kUplink).NumBlocksInSymbol();*/
     if (cfg->AdaptUes()) {
       sched_set_id = mac_sched->UeScheduleIndex(Utils::BitIndices2Int(ue_list));
       mac_sched->UpdateMcsParams(cfg->FramesToTest() - 1);
-      /*num_bytes_per_ue =
-          mac_sched->Params().NumBytesPerSymbol(Direction::kUplink);*/
       const size_t ul_pkt_per_frame =
           mac_sched->Params().MacPacketsPerframe(Direction::kUplink);
       size_t max_bytes = cfg->MacParams().MaxPacketBytes(Direction::kUplink);
       offset = sched_set_id * max_bytes * ul_pkt_per_frame * cfg->UeAntNum();
       num_bytes_per_ue =
-          mac_sched->Params().NumBytesPerSymbol(Direction::kUplink);
+          mac_sched->Params().MacBytesNumPerframe(Direction::kUplink);
     }
     if ((cfg->Frame().NumDLSyms() > 0) && (cfg->Frame().NumULSyms() > 0)) {
       test_name = "combined";
