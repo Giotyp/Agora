@@ -754,7 +754,7 @@ Config::Config(std::string jsonfilename)
       "\t%zu uplink data symbols per frame, %zu downlink data symbols "
       "per frame,\n"
       "\t%zu OFDM subcarriers (%zu data subcarriers),\n"
-      "Beamforming %s, \n"
+      "\tBeamforming %s, \n"
       "\tSymbol time %.3f usec\n"
       "\tFrame time %.3f usec\n"
       "Radio Network Traffic Peak (Mbps): %.3f\n"

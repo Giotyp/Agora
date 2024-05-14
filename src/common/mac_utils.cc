@@ -37,13 +37,12 @@ void MacUtils::SetMacParams(const nlohmann::json& ul_mcs_json,
   }
   AGORA_LOG_INFO(
       "UL modulation %s, DL modulation %s, \n"
-      "\t%zu UL codeblocks per symbol, "
-      "%zu UL bytes per code block,\n"
+      "\t%zu UL codeblocks per symbol, %zu UL bytes per code block,\n"
       "\t%zu DL codeblocks per symbol, %zu DL bytes per code block,\n"
       "\t%zu UL MAC data bytes per frame, %zu UL MAC bytes per frame,\n"
       "\t%zu DL MAC data bytes per frame, %zu DL MAC bytes per frame,\n"
-      "Uplink Max Mac data per-user tp (Mbps) %.3f\n"
-      "Downlink Max Mac data per-user tp (Mbps) %.3f\n",
+      "\tUplink Max Mac data per-user tp (Mbps) %.3f\n"
+      "\tDownlink Max Mac data per-user tp (Mbps) %.3f\n",
       ul_modulation_.c_str(), dl_modulation_.c_str(),
       ul_ldpc_config_.NumBlocksInSymbol(), ul_num_bytes_per_cb_,
       dl_ldpc_config_.NumBlocksInSymbol(), dl_num_bytes_per_cb_,
@@ -54,35 +53,28 @@ void MacUtils::SetMacParams(const nlohmann::json& ul_mcs_json,
 }
 
 void MacUtils::UpdateUlMcsParams(const nlohmann::json& ul_mcs_json) {
-  if (frame_.NumUlDataSyms() > 0) {
-    this->UpdateUlMCS(ul_mcs_json);
-    this->UpdateUlMacParams();
-  }
+  this->UpdateUlMCS(ul_mcs_json);
+  this->UpdateUlMacParams();
 }
 
 void MacUtils::UpdateUlMcsParams(size_t ul_mcs_index) {
-  if (frame_.NumUlDataSyms() > 0) {
-    this->UpdateUlMCS(ul_mcs_index);
-    this->UpdateUlMacParams();
-  }
+  this->UpdateUlMCS(ul_mcs_index);
+  this->UpdateUlMacParams();
 }
 
 void MacUtils::UpdateDlMcsParams(const nlohmann::json& dl_mcs_json) {
-  if (frame_.NumDlDataSyms() > 0) {
-    this->UpdateDlMCS(dl_mcs_json);
-    this->UpdateDlMacParams();
-  }
+  this->UpdateDlMCS(dl_mcs_json);
+  this->UpdateDlMacParams();
 }
 
 void MacUtils::UpdateDlMcsParams(size_t dl_mcs_index) {
-  if (frame_.NumDlDataSyms() > 0) {
-    this->UpdateDlMCS(dl_mcs_index);
-    this->UpdateDlMacParams();
-  }
+  this->UpdateDlMCS(dl_mcs_index);
+  this->UpdateDlMacParams();
 }
 
 void MacUtils::UpdateUlMacParams() {
-  ul_num_bytes_per_cb_ = ul_ldpc_config_.NumCbLen() / 8;
+  ul_num_bytes_per_cb_ =
+      (frame_.NumUlDataSyms() > 0) ? ul_ldpc_config_.NumCbLen() / 8 : 0;
   ul_num_padding_bytes_per_cb_ =
       Roundup<64>(ul_num_bytes_per_cb_) - ul_num_bytes_per_cb_;
   ul_data_bytes_num_persymbol_ =
@@ -126,7 +118,8 @@ void MacUtils::UpdateUlMacParams() {
 }
 
 void MacUtils::UpdateDlMacParams() {
-  dl_num_bytes_per_cb_ = dl_ldpc_config_.NumCbLen() / 8;
+  dl_num_bytes_per_cb_ =
+      (frame_.NumDlDataSyms() > 0) ? dl_ldpc_config_.NumCbLen() / 8 : 0;
   dl_num_padding_bytes_per_cb_ =
       Roundup<64>(dl_num_bytes_per_cb_) - dl_num_bytes_per_cb_;
   dl_data_bytes_num_persymbol_ =
