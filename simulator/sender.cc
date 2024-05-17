@@ -391,7 +391,7 @@ void* Sender::WorkerThread(int tid) {
           Agora_memory::Alignment_t::kAlign64,
           cfg_->OfdmCaNum() * sizeof(complex_float)));
   auto* socks_pkt_buf = static_cast<Packet*>(PaddedAlignedAlloc(
-      Agora_memory::Alignment_t::kAlign32, cfg_->PacketLength()));
+      Agora_memory::Alignment_t::kAlign64, cfg_->PacketLength()));
 
   double begin = GetTime::GetTimeUs();
   size_t total_tx_packets = 0;
