@@ -406,7 +406,7 @@ void MacThreadClient::ProcessUdpPacketsFromApps() {
       cfg_->Running(false);
       return;
     } else { /* Got some data */
-      RtAssert(mac_packet_length >= ret,
+      RtAssert(mac_packet_length >= static_cast<size_t>(ret),
                "The rx data is too large for a mac packet");
       packets_received++;  // = total_bytes_received / mac_packet_length;
       ///\todo Can push straight away here....

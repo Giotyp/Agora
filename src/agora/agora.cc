@@ -611,8 +611,6 @@ void Agora::Start() {
           // This is an entire frame (multiple mac packets)
           const size_t frame_id = rx_mac_tag_t(event.tags_[0u]).frame_id_;
           // Assert ue_id is in ue_list
-          const size_t ue_id = rx_mac_tag_t(event.tags_[0u]).tid_;
-
           auto ue_list = mac_sched_->ScheduledUeList(frame_id, 0u);
           const bool last_ue = this->mac_to_phy_counters_.CompleteTask(
               frame_id, 0, ue_list.n_elem);
