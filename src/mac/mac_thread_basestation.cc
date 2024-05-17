@@ -586,7 +586,7 @@ void MacThreadBaseStation::SendCodeblocksToPhy(EventData event) {
       }
       std::memmove(&(*client_.dl_bits_buffer_)[ue_id][dest_pkt_offset],
                    dl_mac_bytes_[sched_id] + pkt_id * mac_packet_length,
-                   num_dl_mac_bytes_);
+                   mac_packet_length);
     }
   }  // end all packets
 

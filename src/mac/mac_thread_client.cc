@@ -581,12 +581,13 @@ void MacThreadClient::SendCodeblocksToPhy(EventData event) {
     } else {
       size_t sched_id = ue_id;
       if (cfg_->AdaptUes()) {
+        // we are using custom scheduler here
         mac_sched_->UpdateScheduler(frame_id);
         sched_id = mac_sched_->SelectedGroup() * cfg_->UeAntNum() + ue_id;
       }
       std::memmove(&(*client_.ul_bits_buffer_)[ue_id][dest_pkt_offset],
                    ul_mac_bytes_[sched_id] + pkt_id * mac_packet_length,
-                   num_ul_mac_bytes_);
+                   mac_packet_length);
     }
   }  // end all packets
   (*client_.ul_bits_buffer_status_)[ue_id][radio_buf_id] = 1;

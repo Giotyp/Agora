@@ -78,7 +78,7 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
   std::uniform_int_distribution<> distribution(0, 1);
   std::vector<uint8_t> sched_ue_map;
   std::vector<size_t> sched_ue_set;  // a condensed and sorted set of schedules
-  std::uniform_int_distribution<> mcs_distribution(10, 20);
+  std::uniform_int_distribution<> mcs_distribution(15, 20);
   std::vector<uint8_t> sched_ul_mcs;
   std::vector<uint8_t> sched_dl_mcs;
   if (cfg->AdaptUes() == true) {

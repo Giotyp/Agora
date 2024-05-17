@@ -384,6 +384,7 @@ void PhyUe::Start() {
                                                  frame_id, frame_id - 1),
                   rx_counters_.num_pkts_.at(prev_frame_slot));
             }
+            // Update MCS parameters for this frame (should be done once per frame)
             mac_sched_->UpdateMcsParams(frame_id);
           }
 
@@ -429,6 +430,7 @@ void PhyUe::Start() {
                 ScheduleWork(ifft_task);
               }  // For all UL Symbols
               if (mac_sched_->IsUeScheduled(frame_id, 0u, ant_id)) {
+                // request packet from MAC
                 EventData req_mac_task(EventType::kPacketFromMac,
                                        gen_tag_t::FrmUe(frame_id, ant_id).tag_);
                 ScheduleTask(req_mac_task, &to_mac_queue_, ptok_mac);

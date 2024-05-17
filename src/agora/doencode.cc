@@ -35,7 +35,10 @@ DoEncode::DoEncode(Config* in_config, int in_tid, Direction dir,
   encoded_buffer_temp_ = static_cast<int8_t*>(Agora_memory::PaddedAlignedAlloc(
       Agora_memory::Alignment_t::kAlign64, LdpcEncodingEncodedBufSize(bg, zc)));
   assert(encoded_buffer_temp_ != nullptr);
-  if (cfg_->Frame().NumDlDataSyms() != 0) {
+  num_data_syms_ = (dir == Direction::kDownlink)
+                       ? cfg_->Frame().NumDlDataSyms()
+                       : cfg_->Frame().NumUlDataSyms();
+  if (num_data_syms_ != 0) {
     scrambler_buffer_bytes_ = cfg_->MacParams().MaxPacketBytes(dir) +
                               cfg_->MacParams().NumPaddingBytesPerCb(dir);
 
@@ -50,7 +53,7 @@ DoEncode::DoEncode(Config* in_config, int in_tid, Direction dir,
 DoEncode::~DoEncode() {
   std::free(parity_buffer_);
   std::free(encoded_buffer_temp_);
-  if (cfg_->Frame().NumDlDataSyms() != 0) {
+  if (num_data_syms_ != 0) {
     std::free(scrambler_buffer_);
   }
 }

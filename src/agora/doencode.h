@@ -29,6 +29,7 @@ class DoEncode : public Doer {
 
  private:
   Direction dir_;
+  size_t num_data_syms_;
 
   // References to buffers allocated pre-construction
   Table<int8_t>& raw_data_buffer_;

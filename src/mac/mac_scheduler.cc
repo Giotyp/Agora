@@ -70,6 +70,8 @@ void MacScheduler::UpdateCSI(size_t cur_sc_id, const arma::cx_fmat& csi_in) {
 void MacScheduler::UpdateMcsParams(size_t frame_id) {
   size_t ul_mcs = this->SelectedUlMcs(frame_id, 0u);
   size_t dl_mcs = this->SelectedDlMcs(frame_id, 0u);
+  AGORA_LOG_INFO("Frame %zu: updating UL MCS: %zu, DL MCS %zu\n", frame_id,
+                 ul_mcs, dl_mcs);
   this->Params().UpdateUlMcsParams(ul_mcs);
   this->Params().UpdateDlMcsParams(dl_mcs);
 }
