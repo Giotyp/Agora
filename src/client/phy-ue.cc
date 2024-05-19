@@ -663,8 +663,9 @@ void PhyUe::Start() {
           EventData do_modul_task(EventType::kModul, event.tags_[0]);
           ScheduleWork(do_modul_task);
 
+          auto ue_list = mac_sched_->ScheduledUeList(frame_id, 0u);
           const bool symbol_complete =
-              encode_counter_.CompleteTask(frame_id, symbol_id);
+              encode_counter_.CompleteTask(frame_id, symbol_id, ue_list.n_elem);
           if (symbol_complete == true) {
             PrintPerSymbolDone(PrintType::kEncode, frame_id, symbol_id);
 
@@ -690,8 +691,9 @@ void PhyUe::Start() {
               gen_tag_t::FrmSymUe(frame_id, symbol_id, ue_ant).tag_);
           ScheduleWork(do_ifft_task);
 
-          const bool symbol_complete =
-              modulation_counters_.CompleteTask(frame_id, symbol_id);
+          auto ue_list = mac_sched_->ScheduledUeList(frame_id, 0u);
+          const bool symbol_complete = modulation_counters_.CompleteTask(
+              frame_id, symbol_id, ue_list.n_elem);
           if (symbol_complete) {
             PrintPerSymbolDone(PrintType::kModul, frame_id, symbol_id);
 
@@ -946,8 +948,8 @@ void PhyUe::FreeDownlinkBuffers() {
 
 void PhyUe::PrintPerTaskDone(PrintType print_type, size_t frame_id,
                              size_t symbol_id, size_t ant) {
-  if (kDebugPrintPerTaskDone == true) {
-    // if (true) {
+  //if (kDebugPrintPerTaskDone == true) {
+  if (true) {
     switch (print_type) {
       case (PrintType::kPacketRX):
         AGORA_LOG_INFO("PhyUe [frame %zu symbol %zu ant %zu]: Rx packet\n",
