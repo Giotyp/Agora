@@ -346,6 +346,11 @@ class Config {
   inline size_t UeMacRxPort() const { return this->ue_mac_rx_port_; }
   inline size_t UeMacTxPort() const { return this->ue_mac_tx_port_; }
 
+  inline std::string UeAppRxAddr() const { return this->ue_app_rx_addr_; }
+  inline std::string BsAppRxAddr() const { return this->bs_app_rx_addr_; }
+  inline size_t UeAppRxPort() const { return this->ue_app_rx_port_; }
+  inline size_t BsAppRxPort() const { return this->bs_app_rx_port_; }
+
   inline std::string RpRemoteHostName() const {
     return this->rp_remote_host_name_;
   }
@@ -420,7 +425,6 @@ class Config {
     return this->beacon_ci16_;
   };
 
-  inline Table<int8_t>& DlBits() { return this->dl_bits_; }
   inline Table<int8_t>& UlBits() { return this->ul_bits_; }
   inline Table<int8_t>& DlModBits() { return this->dl_mod_bits_; }
   inline Table<int8_t>& UlModBits() { return this->ul_mod_bits_; }
@@ -820,7 +824,6 @@ class Config {
   std::vector<size_t> dl_symbol_data_id_;
   std::vector<size_t> dl_symbol_ctrl_id_;
 
-  Table<int8_t> dl_bits_;
   Table<int8_t> ul_bits_;
   Table<int8_t> ul_mod_bits_;
   Table<int8_t> dl_mod_bits_;
@@ -1070,6 +1073,18 @@ class Config {
   // Port ID at Client MAC layer side
   size_t ue_mac_rx_port_;
   size_t ue_mac_tx_port_;
+
+  // IP Address of the data generation app at the UE, e.g. video streamer
+  std::string ue_app_rx_addr_;
+
+  // IP Address of the data generation app at the BS, e.g. video streamer
+  std::string bs_app_rx_addr_;
+
+  // Base UDP port used by the data generation app at the UE, e.g. video streamer
+  size_t ue_app_rx_port_;
+
+  // Base UDP port used by the data generation app at the BS, e.g. video streamer
+  size_t bs_app_rx_port_;
 
   // Port ID at RP
   std::string rp_remote_host_name_;
