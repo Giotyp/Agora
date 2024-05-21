@@ -689,8 +689,8 @@ Config::Config(std::string jsonfilename)
 
   encode_block_size_ = tdd_conf.value("encode_block_size", 1);
 
-  noise_level_ = tdd_conf.value("noise_level", 0.03);  // default: 30 dB
-  AGORA_LOG_SYMBOL("Noise level: %.2f\n", noise_level_);
+  noise_level_ = tdd_conf.value("noise_level", 0.02);  // default: 30 dB
+  AGORA_LOG_SYMBOL("Noise level: %.3f\n", noise_level_);
 
   // Scrambler and descrambler configurations
   scramble_enabled_ = tdd_conf.value("wlan_scrambler", true);
