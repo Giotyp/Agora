@@ -991,15 +991,53 @@ void Config::LoadDownlinkData() {
 void Config::LoadTestVectors() {
   this->GenPilots();
 
+  size_t n_frames = 1;
+  if (this->adapt_ues_) {
+    static const std::string kFilename = kExperimentFilepath +
+                                         kUeSchedulePrefix +
+                                         std::to_string(this->ue_ant_num_);
+    std::vector<uint8_t> ue_map_array(frames_to_test_ * ue_ant_num_);
+    Utils::ReadBinaryFile(kFilename + "ue.bin", sizeof(uint8_t),
+                          frames_to_test_ * ue_ant_num_, 0,
+                          ue_map_array.data());
+    std::vector<size_t> ue_sched_set;
+    for (size_t fn = 0u; fn < this->frames_to_test_; fn++) {
+      size_t ue_sched_id = 0;
+      for (size_t ue = 0; ue < this->ue_ant_num_; ue++) {
+        uint8_t sched_bit = ue_map_array.at(fn * this->ue_ant_num_ + ue);
+        ue_sched_id += static_cast<size_t>(sched_bit * std::pow(2, ue));
+      }
+      if (ue_sched_set.size() == 0) {
+        ue_sched_set.push_back(ue_sched_id);
+      } else {
+        std::vector<size_t>::iterator it;
+        for (it = ue_sched_set.begin(); it < ue_sched_set.end(); it++) {
+          if (ue_sched_id == *it) {  // dont's push this to keep vector unique
+            break;
+          } else if (ue_sched_id > *it && (it + 1) == ue_sched_set.end()) {
+            ue_sched_set.push_back(ue_sched_id);
+            break;
+          } else if (ue_sched_id < *it && it == ue_sched_set.begin()) {
+            ue_sched_set.insert(it, ue_sched_id);
+            break;
+          } else if (ue_sched_id > *it && ue_sched_id < *(it + 1)) {
+            ue_sched_set.insert(it + 1, ue_sched_id);
+            break;
+          }
+        }
+      }
+    }
+    n_frames = ue_sched_set.size();
+  }
+  AGORA_LOG_INFO("Loading data for %zu schedules\n", n_frames);
   // Freq-domain uplink symbols
   this->LoadUplinkData();
   Table<complex_float> ul_iq_ifft;
-  if (this->frame_.NumUlDataSyms() > 0) {
-    ul_iq_ifft.Calloc(this->frame_.NumUlDataSyms(),
-                      this->ofdm_ca_num_ * this->ue_ant_num_,
+  size_t total_ul_syms = n_frames * this->frame_.NumUlDataSyms();
+  if (total_ul_syms > 0) {
+    ul_iq_ifft.Calloc(total_ul_syms, this->ofdm_ca_num_ * this->ue_ant_num_,
                       Agora_memory::Alignment_t::kAlign64);
-    ul_iq_f_.Calloc(this->frame_.NumUlDataSyms(),
-                    this->ofdm_data_num_ * this->ue_ant_num_,
+    ul_iq_f_.Calloc(total_ul_syms, this->ofdm_data_num_ * this->ue_ant_num_,
                     Agora_memory::Alignment_t::kAlign64);
     ul_iq_t_.Calloc(this->frame_.NumUlDataSyms(),
                     this->samps_per_symbol_ * this->ue_ant_num_,
@@ -1009,35 +1047,38 @@ void Config::LoadTestVectors() {
         std::to_string(this->ofdm_ca_num_) + "_ue" +
         std::to_string(this->ue_ant_total_) + ".bin";
     size_t seek_offset = 0;
-    for (size_t i = 0; i < this->frame_.NumUlDataSyms(); i++) {
-      seek_offset +=
-          ofdm_ca_num_ * this->ue_ant_offset_ * sizeof(complex_float);
-      for (size_t j = 0; j < this->ue_ant_num_; j++) {
-        Utils::ReadBinaryFile(ul_ifft_data_file, sizeof(complex_float),
-                              ofdm_ca_num_, seek_offset,
-                              &ul_iq_ifft[i][j * ofdm_ca_num_]);
-        std::memcpy(&ul_iq_f_[i][j * ofdm_data_num_],
-                    &ul_iq_ifft[i][j * ofdm_ca_num_ + ofdm_data_start_],
-                    ofdm_data_num_ * sizeof(complex_float));
-        CommsLib::FFTShift(&ul_iq_ifft[i][j * ofdm_ca_num_], ofdm_ca_num_);
-        CommsLib::IFFT(&ul_iq_ifft[i][j * ofdm_ca_num_], ofdm_ca_num_, false);
-        seek_offset += ofdm_ca_num_ * sizeof(complex_float);
+    for (size_t fr = 0; fr < n_frames; fr++) {
+      for (size_t i = 0; i < this->frame_.NumUlDataSyms(); i++) {
+        seek_offset +=
+            ofdm_ca_num_ * this->ue_ant_offset_ * sizeof(complex_float);
+        size_t total_sym_id = fr * frame_.NumUlDataSyms() + i;
+        for (size_t j = 0; j < this->ue_ant_num_; j++) {
+          Utils::ReadBinaryFile(ul_ifft_data_file, sizeof(complex_float),
+                                ofdm_ca_num_, seek_offset,
+                                &ul_iq_ifft[total_sym_id][j * ofdm_ca_num_]);
+          std::memcpy(
+              &ul_iq_f_[total_sym_id][j * ofdm_data_num_],
+              &ul_iq_ifft[total_sym_id][j * ofdm_ca_num_ + ofdm_data_start_],
+              ofdm_data_num_ * sizeof(complex_float));
+          seek_offset += ofdm_ca_num_ * sizeof(complex_float);
+        }
+        seek_offset +=
+            ofdm_ca_num_ *
+            (this->ue_ant_total_ - this->ue_ant_offset_ - this->ue_ant_num_) *
+            sizeof(complex_float);
+        AGORA_LOG_TRACE("SEEK Offset %zu\n", seek_offset);
       }
-      seek_offset +=
-          ofdm_ca_num_ *
-          (this->ue_ant_total_ - this->ue_ant_offset_ - this->ue_ant_num_) *
-          sizeof(complex_float);
     }
   }
 
   // Generate freq-domain downlink symbols
   this->LoadDownlinkData();
   Table<complex_float> dl_iq_ifft;
-  if (this->frame_.NumDlDataSyms() > 0) {
-    dl_iq_ifft.Calloc(this->frame_.NumDlDataSyms(),
-                      this->ofdm_ca_num_ * this->ue_ant_num_,
+  size_t total_dl_syms = n_frames * this->frame_.NumDlDataSyms();
+  if (total_dl_syms > 0) {
+    dl_iq_ifft.Calloc(total_dl_syms, this->ofdm_ca_num_ * this->ue_ant_num_,
                       Agora_memory::Alignment_t::kAlign64);
-    dl_iq_f_.Calloc(this->frame_.NumDlDataSyms(), ofdm_data_num_ * ue_ant_num_,
+    dl_iq_f_.Calloc(total_dl_syms, ofdm_data_num_ * ue_ant_num_,
                     Agora_memory::Alignment_t::kAlign64);
     dl_iq_t_.Calloc(this->frame_.NumDlDataSyms(),
                     this->samps_per_symbol_ * this->ue_ant_num_,
@@ -1047,24 +1088,27 @@ void Config::LoadTestVectors() {
         std::to_string(this->ofdm_ca_num_) + "_ue" +
         std::to_string(this->ue_ant_total_) + ".bin";
     size_t seek_offset = 0;
-    for (size_t i = 0; i < this->frame_.NumDlDataSyms(); i++) {
-      seek_offset +=
-          ofdm_ca_num_ * this->ue_ant_offset_ * sizeof(complex_float);
-      for (size_t j = 0; j < this->ue_ant_num_; j++) {
-        Utils::ReadBinaryFile(dl_ifft_data_file, sizeof(complex_float),
-                              ofdm_ca_num_, seek_offset,
-                              &dl_iq_ifft[i][j * ofdm_ca_num_]);
-        std::memcpy(&dl_iq_f_[i][j * ofdm_data_num_],
-                    &dl_iq_ifft[i][j * ofdm_ca_num_ + ofdm_data_start_],
-                    ofdm_data_num_ * sizeof(complex_float));
-        CommsLib::FFTShift(&dl_iq_ifft[i][j * ofdm_ca_num_], ofdm_ca_num_);
-        CommsLib::IFFT(&dl_iq_ifft[i][j * ofdm_ca_num_], ofdm_ca_num_, false);
-        seek_offset += ofdm_ca_num_ * sizeof(complex_float);
+    for (size_t fr = 0; fr < n_frames; fr++) {
+      for (size_t i = 0; i < this->frame_.NumDlDataSyms(); i++) {
+        seek_offset +=
+            ofdm_ca_num_ * this->ue_ant_offset_ * sizeof(complex_float);
+        size_t total_sym_id = fr * frame_.NumDlDataSyms() + i;
+        for (size_t j = 0; j < this->ue_ant_num_; j++) {
+          Utils::ReadBinaryFile(dl_ifft_data_file, sizeof(complex_float),
+                                ofdm_ca_num_, seek_offset,
+                                &dl_iq_ifft[total_sym_id][j * ofdm_ca_num_]);
+          std::memcpy(
+              &dl_iq_f_[total_sym_id][j * ofdm_data_num_],
+              &dl_iq_ifft[total_sym_id][j * ofdm_ca_num_ + ofdm_data_start_],
+              ofdm_data_num_ * sizeof(complex_float));
+          seek_offset += ofdm_ca_num_ * sizeof(complex_float);
+        }
+        seek_offset +=
+            ofdm_ca_num_ *
+            (this->ue_ant_total_ - this->ue_ant_offset_ - this->ue_ant_num_) *
+            sizeof(complex_float);
+        AGORA_LOG_TRACE("SEEK Offset %zu\n", seek_offset);
       }
-      seek_offset +=
-          ofdm_ca_num_ *
-          (this->ue_ant_total_ - this->ue_ant_offset_ - this->ue_ant_num_) *
-          sizeof(complex_float);
     }
   }
 
@@ -1072,12 +1116,12 @@ void Config::LoadTestVectors() {
 
   float ul_max_mag =
       (this->frame_.NumUlDataSyms() > 0)
-          ? CommsLib::FindMaxAbs(ul_iq_ifft, this->frame_.NumUlDataSyms(),
+          ? CommsLib::FindMaxAbs(ul_iq_ifft, total_ul_syms,
                                  this->ue_ant_num_ * this->ofdm_ca_num_)
           : 0;
   float dl_max_mag =
       (this->frame_.NumDlDataSyms() > 0)
-          ? CommsLib::FindMaxAbs(dl_iq_ifft, this->frame_.NumDlDataSyms(),
+          ? CommsLib::FindMaxAbs(dl_iq_ifft, total_dl_syms,
                                  this->ue_ant_num_ * this->ofdm_ca_num_)
           : 0;
   float ue_pilot_max_mag = CommsLib::FindMaxAbs(
@@ -1087,18 +1131,16 @@ void Config::LoadTestVectors() {
   this->scale_ =
       2 * std::max({ul_max_mag, dl_max_mag, ue_pilot_max_mag, pilot_max_mag});
 
-  float dl_papr =
-      (this->frame_.NumDlDataSyms() > 0)
-          ? dl_max_mag /
-                CommsLib::FindMeanAbs(dl_iq_ifft, this->frame_.NumDlDataSyms(),
-                                      this->ue_ant_num_ * this->ofdm_ca_num_)
-          : 0;
-  float ul_papr =
-      (this->frame_.NumUlDataSyms() > 0)
-          ? ul_max_mag /
-                CommsLib::FindMeanAbs(ul_iq_ifft, this->frame_.NumUlDataSyms(),
-                                      this->ue_ant_num_ * this->ofdm_ca_num_)
-          : 0;
+  float dl_papr = (this->frame_.NumDlDataSyms() > 0)
+                      ? dl_max_mag / CommsLib::FindMeanAbs(
+                                         dl_iq_ifft, total_dl_syms,
+                                         this->ue_ant_num_ * this->ofdm_ca_num_)
+                      : 0;
+  float ul_papr = (this->frame_.NumUlDataSyms() > 0)
+                      ? ul_max_mag / CommsLib::FindMeanAbs(
+                                         ul_iq_ifft, total_ul_syms,
+                                         this->ue_ant_num_ * this->ofdm_ca_num_)
+                      : 0;
   std::printf(
       "Uplink PAPR %2.2f dB, Downlink PAPR %2.2f dB, using scale %2.2f\n",
       10 * std::log10(ul_papr), 10 * std::log10(dl_papr), this->scale_);

@@ -140,8 +140,12 @@ MacThreadBaseStation::MacThreadBaseStation(
 
 MacThreadBaseStation::~MacThreadBaseStation() {
   if (kEnableMac == false) {
-    dl_mac_bytes_.Free();
-    ul_mac_bytes_.Free();
+    if (cfg_->Frame().NumDLSyms() != 0) {
+      dl_mac_bytes_.Free();
+    }
+    if (cfg_->Frame().NumULSyms() != 0) {
+      ul_mac_bytes_.Free();
+    }
   }
   std::fclose(log_file_);
   AGORA_LOG_INFO("MacThreadBaseStation: MAC thread destroyed\n");

@@ -54,7 +54,6 @@ Agora::Agora(Config* const cfg)
       config_(cfg),
       mac_sched_(std::make_unique<MacScheduler>(cfg)),
       stats_(std::make_unique<Stats>(cfg)),
-      phy_stats_(std::make_unique<PhyStats>(cfg, Direction::kUplink)),
       agora_memory_(std::make_unique<AgoraBuffer>(cfg)) {
   AGORA_LOG_INFO("Agora: project directory [%s], RDTSC frequency = %.2f GHz\n",
                  kProjectDirectory.c_str(), cfg->FreqGhz());
@@ -69,6 +68,8 @@ Agora::Agora(Config* const cfg)
   frame_tracking_.cur_sche_frame_id_ = 0;
   frame_tracking_.cur_proc_frame_id_ = 0;
 
+  phy_stats_ =
+      std::make_unique<PhyStats>(cfg, mac_sched_.get(), Direction::kUplink);
   InitializeQueues();
   InitializeCounters();
   InitializeThreads();
@@ -1070,7 +1071,9 @@ void Agora::UpdateRxCounters(size_t frame_id, size_t symbol_id) {
   }
   // Receive first packet in a frame
   if (rx_counters_.num_pkts_.at(frame_slot) == 0) {
-    mac_sched_->UpdateMcsParams(frame_id);
+    if (config_->AdaptUes()) {
+      mac_sched_->UpdateMcsParams(frame_id);
+    }
     // schedule this frame's encoding
     // Defer the schedule.  If frames are already deferred or the current
     // received frame is too far off

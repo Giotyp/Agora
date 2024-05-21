@@ -78,7 +78,7 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
   std::uniform_int_distribution<> distribution(0, 1);
   std::vector<uint8_t> sched_ue_map;
   std::vector<size_t> sched_ue_set;  // a condensed and sorted set of schedules
-  std::uniform_int_distribution<> mcs_distribution(15, 20);
+  std::uniform_int_distribution<> mcs_distribution(10, 25);
   std::vector<uint8_t> sched_ul_mcs;
   std::vector<uint8_t> sched_dl_mcs;
   if (cfg->AdaptUes() == true) {
@@ -151,6 +151,9 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
     sched_ul_mcs.push_back(cfg->MacParams().McsIndex(Direction::kUplink));
     sched_dl_mcs.push_back(cfg->MacParams().McsIndex(Direction::kDownlink));
   }
+
+  AGORA_LOG_INFO("Generating data for %zu frame schedules\n",
+                 sched_ue_set.size());
 
   // Step 1: Generate and Populate Uplink Pilots
   // Generate common sounding pilots
@@ -254,6 +257,14 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
       mac_params.MaxPacketBytes(Direction::kDownlink) * dl_pkt_per_frame;
   for (size_t sched = 0; sched < sched_ue_set.size(); sched++) {
     auto sched_id = sched_ue_set.at(sched);
+    auto ue_map = Utils::Int2Bits(sched_id, cfg->UeAntNum());
+    AGORA_LOG_INFO(
+        "Frame Schedule %zu: Generating data for %zu UEs with UL MCS %zu & DL "
+        "MCS %zu\n",
+        sched, ue_map.n_elem, sched_ul_mcs.at(sched), sched_dl_mcs.at(sched));
+    if (kPrintUeSchedule) {
+      std::cout << ue_map << std::endl;
+    }
     // Generate the information buffers (MAC Packets) and LDPC-encoded buffers
     if (cfg->Frame().NumULSyms() != 0) {
       if (cfg->AdaptUes()) {
@@ -453,11 +464,7 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
         std::to_string(cfg->BsAntNum()) + "_ueant" +
         std::to_string(cfg->UeAntNum()) + ".bin";
     AGORA_LOG_INFO("Saving uplink rx samples to %s\n", filename_rx.c_str());
-    auto ue_map = Utils::Int2Bits(sched_id, cfg->UeAntNum());
     auto ue_map_mat = arma::repmat(ue_map, cfg->BsAntNum(), 1);
-    if (kPrintUeSchedule) {
-      std::cout << ue_map << std::endl;
-    }
     for (size_t i = 0; i < cfg->Frame().NumTotalSyms(); i++) {
       arma::cx_fmat mat_input_data(
           reinterpret_cast<arma::cx_float*>(tx_data_all_symbols[i]),

@@ -66,7 +66,6 @@ UeWorker::UeWorker(
       ue_pilot_vec_(ue_pilot_vec) {
   ptok_ = std::make_unique<moodycamel::ProducerToken>(notify_queue);
 
-  phy_stats_.LoadGroundTruthIq();
   AllocBuffer1d(&rx_samps_tmp_, config_.SampsPerSymbol(),
                 Agora_memory::Alignment_t::kAlign64, 1);
 
@@ -325,6 +324,11 @@ void UeWorker::DoFftData(size_t tag) {
   }
   auto phc = exp(arma::cx_float(0, -theta));
   float evms = 0;
+  size_t sched_id = dl_data_symbol_id;
+  if (config_.AdaptUes()) {
+    mac_sched_.UpdateScheduler(frame_id);
+    sched_id += mac_sched_.SelectedGroup() * config_.Frame().NumDlDataSyms();
+  }
   for (size_t j = 0; j < config_.OfdmDataNum(); j++) {
     if (config_.IsDataSubcarrier(j) == true) {
       // divide fft output by pilot data to get CSI estimation
@@ -338,7 +342,7 @@ void UeWorker::DoFftData(size_t tag) {
                              equ_buffer_ptr[data_sc_id]);
       }
       complex_float tx =
-          config_.DlIqF()[dl_data_symbol_id][ant * config_.OfdmDataNum() + j];
+          config_.DlIqF()[sched_id][ant * config_.OfdmDataNum() + j];
       evms +=
           std::norm(equ_buffer_ptr[data_sc_id] - arma::cx_float(tx.re, tx.im));
     }

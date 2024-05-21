@@ -43,7 +43,6 @@ static const std::vector<Agora_recorder::RecorderWorker::RecorderWorkerTypes>
 PhyUe::PhyUe(Config* config)
     : mac_sched_(std::make_unique<MacScheduler>(config)),
       stats_(std::make_unique<Stats>(config)),
-      phy_stats_(std::make_unique<PhyStats>(config, Direction::kDownlink)),
       demod_buffer_(kFrameWnd, config->Frame().NumDlDataSyms(),
                     config->UeAntNum(),
                     kMaxModType * Roundup<64>(config->GetOFDMDataNum())),
@@ -54,6 +53,8 @@ PhyUe::PhyUe(Config* config)
   // TODO take into account the UeAntOffset to allow for multiple PhyUe
   // instances
   this->config_ = config;
+  phy_stats_ = std::make_unique<PhyStats>(config, mac_sched_.get(),
+                                          Direction::kDownlink);
   InitializeVarsFromCfg();
 
   for (size_t i = config_->OfdmDataStart();
@@ -384,8 +385,10 @@ void PhyUe::Start() {
                                                  frame_id, frame_id - 1),
                   rx_counters_.num_pkts_.at(prev_frame_slot));
             }
-            // Update MCS parameters for this frame (should be done once per frame)
-            mac_sched_->UpdateMcsParams(frame_id);
+            if (config_->AdaptUes()) {
+              // Update MCS parameters for this frame (should be done once per frame)
+              mac_sched_->UpdateMcsParams(frame_id);
+            }
           }
 
           if (config_->Frame().IsDlPilot(symbol_id)) {
@@ -948,8 +951,8 @@ void PhyUe::FreeDownlinkBuffers() {
 
 void PhyUe::PrintPerTaskDone(PrintType print_type, size_t frame_id,
                              size_t symbol_id, size_t ant) {
-  //if (kDebugPrintPerTaskDone == true) {
-  if (true) {
+  if (kDebugPrintPerTaskDone == true) {
+    // if (true) {
     switch (print_type) {
       case (PrintType::kPacketRX):
         AGORA_LOG_INFO("PhyUe [frame %zu symbol %zu ant %zu]: Rx packet\n",

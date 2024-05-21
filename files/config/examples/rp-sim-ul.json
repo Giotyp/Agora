@@ -21,13 +21,16 @@
     "freq_orthogonal_pilot": true,
     "beacon_position": 0,
     /* Compute configuration */
-    "core_offset": 4,
     "dynamic_core": true,
     "rp_remote_host_name": "127.0.0.1",
     "rp_tx_port": 3000,
     "rp_rx_port": 4000,
-    "worker_thread_num": 5,
+    "core_offset": 6,
+    "worker_thread_num": 12,
     "socket_thread_num": 1,
+    "ue_core_offset": 1,
+    "ue_worker_thread_num": 2,
+    "ue_socket_thread_num": 1,
     "max_frame": 100,
     "noise_level": 0.01
   }
