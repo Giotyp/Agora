@@ -163,7 +163,7 @@ class MacThreadBaseStation {
   //MAC decoding stats
   std::array<size_t, kMaxUEs> valid_mac_packets_;
   std::array<size_t, kMaxUEs> error_mac_packets_;
-  MacMultiRingBuffer<MacPacketPacked> mac_ring_;
+  MacMultiRingBuffer mac_ring_;
 };
 
 #endif  // MAC_THREAD_H_

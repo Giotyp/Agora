@@ -17,9 +17,6 @@
 // is the frame window that we track in Agora.
 static constexpr size_t kFrameWnd = 40;
 
-// Maximum capacity of Mac packet buffer
-static constexpr size_t kMacBuffSizeMax = 1024;
-
 #define TX_FRAME_DELTA (4)
 #define SETTLE_TIME_MS (1)
 

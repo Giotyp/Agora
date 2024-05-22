@@ -277,8 +277,8 @@ void Agora::ScheduleCodeblocks(EventType event_type, Direction dir,
   }
 }
 
-void Agora::ScheduleUsers(EventType event_type, size_t frame_id,
-                          size_t symbol_id) {
+void Agora::ScheduleUsers([[maybe_unused]] EventType event_type,
+                          size_t frame_id, size_t symbol_id) {
   assert(event_type == EventType::kPacketToMac);
 
   auto ue_list = mac_sched_->ScheduledUeList(frame_id, 0);
@@ -1071,9 +1071,7 @@ void Agora::UpdateRxCounters(size_t frame_id, size_t symbol_id) {
   }
   // Receive first packet in a frame
   if (rx_counters_.num_pkts_.at(frame_slot) == 0) {
-    if (config_->AdaptUes()) {
-      mac_sched_->UpdateMcsParams(frame_id);
-    }
+    mac_sched_->UpdateMcsParams(frame_id);
     // schedule this frame's encoding
     // Defer the schedule.  If frames are already deferred or the current
     // received frame is too far off

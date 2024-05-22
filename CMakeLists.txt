@@ -189,14 +189,14 @@ if (${ENABLE_HDF5})
   include_directories(${HDF5_INCLUDE_DIRS})
 endif()
 
-#Python
-find_package(PythonLibs REQUIRED)
-set(PYTHON_LIB ${PYTHON_LIBRARIES})
-include_directories(${PYTHON_INCLUDE_DIRS})
-message(VERBOSE "  PythonLibs Includes: ${PYTHON_INCLUDE_DIRS} Libraries: ${PYTHON_LIBRARIES}")
-
 #Soapy (optional based on radio type)
 if(RADIO_TYPE STREQUAL SOAPY_IRIS)
+  #Python
+  find_package(PythonLibs REQUIRED)
+  set(PYTHON_LIB ${PYTHON_LIBRARIES})
+  include_directories(${PYTHON_INCLUDE_DIRS})
+  message(VERBOSE "  PythonLibs Includes: ${PYTHON_INCLUDE_DIRS} Libraries: ${PYTHON_LIBRARIES}")
+
   find_package(SoapySDR "0.8.0" CONFIG)
   if(NOT SoapySDR_FOUND)
     message(FATAL_ERROR "SoapySDR development files not found")

@@ -99,9 +99,9 @@ static void GenerateTestVectors(Config* cfg, const std::string& profile_flag) {
         sched_ue_map[i * cfg->UeAntNum()] = 1;
         ue_sched_id = 1;  // schedule UE 0
       }
-      if (sched_ue_set.size() == 0)
+      if (sched_ue_set.empty()) {
         sched_ue_set.push_back(ue_sched_id);
-      else {
+      } else {
         // search for an existing schedule before inserting into a sorted list
         std::vector<size_t>::iterator it;
         for (it = sched_ue_set.begin(); it < sched_ue_set.end(); it++) {
