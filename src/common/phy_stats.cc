@@ -87,7 +87,6 @@ PhyStats::PhyStats(Config* const cfg, MacScheduler* const mac_sched,
                           Agora_memory::Alignment_t::kAlign64);
   csi_cond_.Calloc(kFrameWnd, cfg->OfdmDataNum(),
                    Agora_memory::Alignment_t::kAlign64);
-  this->LoadGroundTruthIq();
 }
 
 PhyStats::~PhyStats() {
@@ -254,7 +253,8 @@ void PhyStats::PrintUlSnrStats(size_t frame_id) {
     if (max_snr == FLT_MIN) {
       max_snr = -100;
     }
-    ss << "User " << i << ": [" << min_snr << "," << max_snr << "]" << " ";
+    ss << "User " << i << ": [" << min_snr << "," << max_snr << "]"
+       << " ";
     if (max_snr - min_snr > 20 && min_snr < 0) {
       ss << "(Possible bad antenna " << min_snr_id << ") ";
     }

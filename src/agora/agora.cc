@@ -70,6 +70,7 @@ Agora::Agora(Config* const cfg)
 
   phy_stats_ =
       std::make_unique<PhyStats>(cfg, mac_sched_.get(), Direction::kUplink);
+  phy_stats_->LoadGroundTruthIq();
   InitializeQueues();
   InitializeCounters();
   InitializeThreads();

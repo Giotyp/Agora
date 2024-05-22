@@ -65,7 +65,9 @@ UeWorker::UeWorker(
       decoded_buffer_(decoded_buffer),
       ue_pilot_vec_(ue_pilot_vec) {
   ptok_ = std::make_unique<moodycamel::ProducerToken>(notify_queue);
-
+  // Has to be called separately in case
+  // LoadTestVector cannot be called, e.g. in unit tests
+  phy_stats_.LoadGroundTruthIq();
   AllocBuffer1d(&rx_samps_tmp_, config_.SampsPerSymbol(),
                 Agora_memory::Alignment_t::kAlign64, 1);
 
