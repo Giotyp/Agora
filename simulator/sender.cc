@@ -184,8 +184,8 @@ void Sender::StartTx() {
   std::signal(SIGINT, InterruptHandler);
   MasterThread(0);  // Start the master thread
 
-  delete[](frame_start_);
-  delete[](frame_end_);
+  delete[] (frame_start_);
+  delete[] (frame_end_);
 }
 
 void Sender::StartTxfromMain(double* in_frame_start, double* in_frame_end) {
@@ -391,7 +391,7 @@ void* Sender::WorkerThread(int tid) {
           Agora_memory::Alignment_t::kAlign64,
           cfg_->OfdmCaNum() * sizeof(complex_float)));
   auto* socks_pkt_buf = static_cast<Packet*>(PaddedAlignedAlloc(
-      Agora_memory::Alignment_t::kAlign32, cfg_->PacketLength()));
+      Agora_memory::Alignment_t::kAlign64, cfg_->PacketLength()));
 
   double begin = GetTime::GetTimeUs();
   size_t total_tx_packets = 0;
@@ -539,7 +539,7 @@ void* Sender::WorkerThread(int tid) {
       RtAssert(completion_queue_.enqueue_bulk(tags, num_tags),
                "Completion enqueue failed");
     }  // if (num_tags > 0)
-  }    // while (keep_running.load() == true)
+  }  // while (keep_running.load() == true)
 
   DftiFreeDescriptor(&mkl_handle);
 
