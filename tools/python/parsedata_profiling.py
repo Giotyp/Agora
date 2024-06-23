@@ -1,5 +1,12 @@
+"""
+ parsedata_profiling.py
+ Print profiling statistics and generate task time graphs
+ 
+"""
+
 import numpy as np
 import re
+import os
 from copy import deepcopy as dpcopy
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
@@ -615,10 +622,15 @@ def plot_graphs(config, master_dict, worker_dict, task_types, agora_dir):
 
 if __name__ == "__main__":
 
-    agora_dir = "/Users/george/git_repos/Agora" # Path to Agora base directory
-    files_path = "files/experiment"
+    # Get the file's absolute path
+    current_file_path = os.path.abspath(__file__)
 
-    agora_config_path = f'{agora_dir}/{files_path}/agora_config.txt'
+    # Go up 2 directories to reach Agora directory
+    agora_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_file_path)))
+
+    results_path = "files/experiment"
+
+    agora_config_path = f'{agora_dir}/{results_path}/agora_config.txt'
     
     config = read_agora_config(agora_config_path)
 
@@ -630,11 +642,11 @@ if __name__ == "__main__":
         task_types, config['total_symbol_num_perframe'], config['worker_thread_num'])
 
     # Read master timestamps
-    timestamps_master_path = f'{agora_dir}/{files_path}/timestamps_master.txt'
+    timestamps_master_path = f'{agora_dir}/{results_path}/timestamps_master.txt'
     read_timestamps_master(timestamps_master_path, master_dict)
 
     # Read worker timestamps
-    timestamps_workers_path = f'{agora_dir}/{files_path}/timestamps_workers.txt'
+    timestamps_workers_path = f'{agora_dir}/{results_path}/timestamps_workers.txt'
     read_timestamps_workers(timestamps_workers_path, worker_dict)
 
     # Adjust timestamps
