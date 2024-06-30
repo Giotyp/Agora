@@ -385,14 +385,14 @@ def profile_stats(config, worker_dict, task_types):
         f"{num_tasks['Precode']} Precodes: {task_duration['Precode']:.2f} us,",
         f"{num_tasks['IFFT']} IFFTs: {task_duration['IFFT']:.2f} us")
 
-        print("Total time: ",
-          f"{sum_task_num['FFT']} FFTs: {sum_task_duration['FFT']:.2f} us,",
-            f"{sum_task_num['Beam']} Beams: {sum_task_duration['Beam']:.2f} us,",
-            f"{sum_task_num['Demul']} Demuls: {sum_task_duration['Demul']:.2f} us,",
-            f"{sum_task_num['Decode']} Decodes: {sum_task_duration['Decode']:.2f} us,",
-            f"{sum_task_num['Encode']} Encodes: {sum_task_duration['Encode']:.2f} us,",
-            f"{sum_task_num['Precode']} Precodes: {sum_task_duration['Precode']:.2f} us,",
-            f"{sum_task_num['IFFT']} IFFTs: {sum_task_duration['IFFT']:.2f} us")
+    print("Total time: ",
+        f"{sum_task_num['FFT']} FFTs: {sum_task_duration['FFT']:.2f} us,",
+        f"{sum_task_num['Beam']} Beams: {sum_task_duration['Beam']:.2f} us,",
+        f"{sum_task_num['Demul']} Demuls: {sum_task_duration['Demul']:.2f} us,",
+        f"{sum_task_num['Decode']} Decodes: {sum_task_duration['Decode']:.2f} us,",
+        f"{sum_task_num['Encode']} Encodes: {sum_task_duration['Encode']:.2f} us,",
+        f"{sum_task_num['Precode']} Precodes: {sum_task_duration['Precode']:.2f} us,",
+        f"{sum_task_num['IFFT']} IFFTs: {sum_task_duration['IFFT']:.2f} us")
 
 
 def plot_graphs(config, master_dict, worker_dict, task_types, agora_dir):
