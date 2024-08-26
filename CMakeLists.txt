@@ -116,6 +116,14 @@ set(USE_AVX2_ENCODER False CACHE BOOL "Use Agora's AVX2 encoder instead of FlexR
 message(STATUS "USE_AVX2_ENCODER: ${USE_AVX2_ENCODER}")
 set(ENABLE_DPDK False CACHE BOOL "ENABLE_DPDK set to true to enable dpdk support")
 message(STATUS "ENABLE_DPDK:      ${ENABLE_DPDK}")
+
+set(ENABLE_ACC100 False CACHE BOOL "ENABLE_ACC100 set to true to enable LDPC acceleration")
+message(STATUS "ENABLE_ACC100:      ${ENABLE_ACC100}")
+
+if(ENABLE_ACC100)
+  add_definitions(-DENABLE_ACC100)
+endif()
+
 set(ENABLE_HDF5 False CACHE BOOL "ENABLE_HDF5 defaulting to 'False'")
 message(STATUS "ENABLE_HDF5:      ${ENABLE_HDF5}")
 message(STATUS "--------------------------------\n--")
@@ -164,7 +172,7 @@ if(ENABLE_DPDK)
   endif()
   include_directories(${DPDK_INCLUDE_DIRS})
 
-  add_definitions(-DUSE_DPDK)
+  # add_definitions(-DUSE_DPDK)
   if (ISA_AVX512)
     message(STATUS "Enabling AVX-512 memcpy implementation for dpdk")
     add_definitions(-DRTE_MEMCPY_AVX512)
@@ -482,6 +490,7 @@ set(AGORA_SOURCES ${AGORA_SOURCES}
   src/agora/dodemul.cc
   src/agora/doprecode.cc
   src/agora/dodecode.cc
+  src/agora/dodecode_acc.cc
   src/mac/mac_thread_basestation.cc
   src/agora/txrx/packet_txrx_sim.cc
   src/agora/txrx/workers/txrx_worker_sim.cc

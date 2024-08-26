@@ -21,6 +21,7 @@
 
 static const bool kPrintAdaptUes = false;
 static const bool kDebugDeferral = true;
+static const bool kPrintBuffers = true;
 
 static const std::string kProjectDirectory = TOSTRING(PROJECT_DIRECTORY);
 static const std::string kOutputFilepath =
@@ -28,6 +29,8 @@ static const std::string kOutputFilepath =
 static const std::string kTxDataFilename = kOutputFilepath + "tx_data.bin";
 static const std::string kDecodeDataFilename =
     kOutputFilepath + "decode_data.bin";
+
+static const std::string kBuffersDataFilename = kOutputFilepath + "buffers_output.txt";
 
 //Recording parameters
 static constexpr size_t kRecordFrameInterval = 1;
@@ -87,6 +90,110 @@ Agora::Agora(Config* const cfg)
 }
 
 Agora::~Agora() {
+  if (kPrintBuffers) {
+    FILE* fp_debug = std::fopen(kBuffersDataFilename.c_str(), "w");
+    size_t factor = std::min(kFrameWnd, config_->FramesToTest());
+
+    // Print FFT buffer
+    const size_t task_buffer_symbol_num_ul =
+      config_->Frame().NumULSyms() * factor;
+    std::stringstream ss1;
+    ss1 << "\nFFT Buffer=[";
+    for(size_t fr=0; fr<task_buffer_symbol_num_ul; fr++) {
+      for(size_t ul=0; ul<config_->OfdmDataNum() * config_->BsAntNum(); ul++) {
+          ss1 << std::fixed << std::setw(5) << std::setprecision(5)
+          << agora_memory_->GetFft()[fr][ul].re << "+1j* " << agora_memory_->GetFft()[fr][ul].im << ", ";
+      }
+      ss1 << std::endl << "---------------" << std::endl;
+    }
+    ss1 << "];\n" << std::endl;
+
+    //out_file << ss1.str();
+    std::fprintf(fp_debug, "%s", ss1.str().c_str());
+
+
+    // Print CSI buffer
+    std::stringstream ss;
+    ss << "\nCSI Buffer=[";
+    for(size_t fr=0; fr<factor; fr++) {
+      for(size_t ue=0; ue<config_->UeAntNum(); ue++) {
+        for(size_t i=0; i< config_->BsAntNum() * config_->OfdmDataNum(); i++) {
+          ss << std::fixed << std::setw(5) << std::setprecision(5)
+          << agora_memory_->GetCsi()[fr][ue][i].re << "+1j* " << agora_memory_->GetCsi()[fr][ue][i].im << ", ";
+        }
+        ss << std::endl << "---------------" << std::endl;
+      }
+      ss << std::endl << "---------------" << std::endl;
+    }
+    ss << "];\n" << std::endl;
+    //out_file << ss.str();
+    std::fprintf(fp_debug, "%s", ss.str().c_str());
+
+    // Print UL ZF buffer
+    std::stringstream ss2;
+    ss2 << "\nULZF Buffer=[";
+    for(size_t fr=0; fr<factor; fr++) {
+      for(size_t sc=0; sc<config_->OfdmDataNum(); sc++) {
+        for(size_t i=0; i< config_->BsAntNum() * config_->UeAntNum(); i++) {
+          ss2 << std::fixed << std::setw(5) << std::setprecision(5)
+          << agora_memory_->GetUlBeamMatrix()[fr][sc][i].re << "+1j* " << agora_memory_->GetUlBeamMatrix()[fr][sc][i].im << ", ";
+        }
+        ss2 << std::endl << "---------------" << std::endl;
+      }
+      ss2 << std::endl << "---------------" << std::endl;
+    }
+    ss2 << "];\n" << std::endl;
+    //out_file << ss2.str();
+    std::fprintf(fp_debug, "%s", ss2.str().c_str());
+
+    // Print Demod Buffer
+    int8_t* demod_ptr;
+    size_t mod_bits = config_->ModOrderBits(Direction::kUplink);
+    std::fprintf(fp_debug, "\nDemulF (MBits: %zu)=[", mod_bits);
+    for(size_t fr=0; fr<factor; fr++) {
+      for(size_t sc=0; sc<config_->Frame().NumUlDataSyms(); sc++) {
+        for(size_t ue=0; ue< config_->UeAntNum(); ue++) {
+          demod_ptr = agora_memory_->GetDemod()[fr][sc][ue];
+          for(size_t i=0; i< config_->OfdmDataNum() * mod_bits; i++) {
+              std::fprintf(fp_debug, "%i, ", demod_ptr[i]);
+            }
+            std::fprintf(fp_debug, "\n------ue change---------\n");
+          }
+          std::fprintf(fp_debug, "\n------sc change---------\n");
+        }
+        std::fprintf(fp_debug, "\n------- fr change--------\n");
+      }
+    std::fprintf(fp_debug, "];\n\n");
+
+    // Print Decod Buffer
+    int8_t* decod_ptr;
+    const LDPCconfig& ldpc_config = config_->LdpcConfig(Direction::kUplink);
+    //size_t num_tasks = config_->SpatialStreamsNum() * ldpc_config.NumBlocksInSymbol();
+    size_t num_bytes_per_cb = config_->NumBytesPerCb(Direction::kUplink);
+    size_t dim3 = ldpc_config.NumBlocksInSymbol() * Roundup<64>(num_bytes_per_cb);
+
+    
+
+    std::fprintf(fp_debug, "\nDecode Buffer=[");
+    for(size_t fr=0; fr<factor; fr++) {
+      for(size_t sc=0; sc<config_->Frame().NumUlDataSyms(); sc++) {
+        for(size_t ue=0; ue< config_->UeAntNum(); ue++) {
+          decod_ptr =  agora_memory_->GetDecod()[fr][sc][ue];
+          for(size_t i=0; i< dim3; i++) {
+            std::fprintf(fp_debug, "%i, ", decod_ptr[i]);
+          }
+          std::fprintf(fp_debug, "\n------ue change---------\n");
+        }
+          std::fprintf(fp_debug, "\n------sc change---------\n");
+      }
+        std::fprintf(fp_debug, "\n------- fr change--------\n");
+    }
+    std::fprintf(fp_debug, "];\n\n");
+
+    AGORA_LOG_INFO("Agora: Saving buffers state to %s\n",
+                 kBuffersDataFilename.c_str());
+    std::fclose(fp_debug);
+  }
   mac_std_thread_.join();
 
   worker_set_.reset();

@@ -10,6 +10,7 @@
 #include "dobeamweights.h"
 #include "dobroadcast.h"
 #include "dodecode.h"
+#include "dodecode_acc.h"
 #include "dodemul.h"
 #include "doencode.h"
 #include "dofft.h"
@@ -30,6 +31,9 @@ AgoraWorker::AgoraWorker(Config* cfg, MacScheduler* mac_sched, Stats* stats,
       frame_(frame),
       base_worker_core_offset_(worker_core_offset) {
   CreateThreads();
+  #if defined(ENABLE_ACC100)
+    AGORA_LOG_INFO("Hardware Acceleration Enabled\n");
+  #endif
 }
 
 AgoraWorker::~AgoraWorker() {
@@ -139,9 +143,16 @@ void AgoraWorker::WorkerThread(int tid) {
       buffer_->GetDlModBits(), mac_sched_, stats_);
 
   // Uplink workers
-  auto compute_decoding = std::make_unique<DoDecode>(
-      config_, tid, buffer_->GetDemod(), buffer_->GetDecod(), mac_sched_,
-      phy_stats_, stats_);
+
+  #if defined(ENABLE_ACC100)
+    auto compute_decoding =
+      std::make_unique<DoDecode_ACC>(config_, tid, buffer_->GetDemod(),
+                                 buffer_->GetDecod(), phy_stats_, stats_);
+  #else
+    auto compute_decoding = std::make_unique<DoDecode>(
+        config_, tid, buffer_->GetDemod(), buffer_->GetDecod(), mac_sched_,
+        phy_stats_, stats_);
+  #endif
 
   auto compute_demul = std::make_unique<DoDemul>(
       config_, tid, buffer_->GetFft(), buffer_->GetUlBeamMatrix(),
