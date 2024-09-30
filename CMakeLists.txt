@@ -490,11 +490,15 @@ set(AGORA_SOURCES ${AGORA_SOURCES}
   src/agora/dodemul.cc
   src/agora/doprecode.cc
   src/agora/dodecode.cc
-  src/agora/dodecode_acc.cc
   src/mac/mac_thread_basestation.cc
   src/agora/txrx/packet_txrx_sim.cc
   src/agora/txrx/workers/txrx_worker_sim.cc
   src/resource_provisioner/resource_provisioner_thread.cc)
+
+if(ENABLE_ACC100)
+  list(APPEND AGORA_SOURCES src/agora/dodecode_acc.cc)
+endif()
+
 
 add_library(agora_sources_lib OBJECT ${AGORA_SOURCES})
 
@@ -603,7 +607,7 @@ add_executable(test_agora
   $<TARGET_OBJECTS:common_sources_lib>)
 target_link_libraries(test_agora ${COMMON_LIBS})
 
-set(LDPC_TESTS test_ldpc test_ldpc_mod test_ldpc_baseband)
+set(LDPC_TESTS test_ldpc test_ldpc_mod test_ldpc_baseband test_decode)
 foreach(test_name IN LISTS LDPC_TESTS)
   add_executable(${test_name}
     test/compute_kernels/ldpc/${test_name}.cc
