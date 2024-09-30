@@ -16,7 +16,8 @@
 
 #define VALUE_DELIMITER ","
 
-const char input0[] = "0x7F817F81, 0x7F81817F, 0x7F7F7F7F, 0x81818181, 0x7F81817F, 0x817F8181, 0x817F7F7F, 0x7F817F81, 0x817F7F7F, 0x8181817F, 0x8181817F";
+// const char input0[] = "0x7F817F81, 0x7F81817F, 0x7F7F7F7F, 0x81818181, 0x7F81817F, 0x817F8181, 0x817F7F7F, 0x7F817F81, 0x817F7F7F, 0x8181817F, 0x8181817F";
+const char input0[] = "0x04030201, 0x08070605, 0x0A09";
 const char output0[] = "0x8C4DEB9F, 0x52";
 
 size_t calculateArraySize(const char input[]) {
@@ -132,11 +133,10 @@ int main() {
 
     assert(llr_data.size() == data_length);
 
-    size_t data_num = max_data_size;
-    size_t data_bytes = llr_data.size(); 
+    size_t data_num = data_length; // each value is 1 byte so dim==bytes
     int8_t* llr_ptr;
     AllocBuffer1d(&llr_ptr, data_num, Agora_memory::Alignment_t::kAlign64, 1);
-    std::memcpy(llr_ptr, llr_data.data(), data_bytes);
+    std::memcpy(llr_ptr, llr_data.data(), data_num);
 
     std::cout << "LLR data: [";
     for (size_t i = 0; i < data_num; ++i) {
@@ -145,34 +145,28 @@ int main() {
     std::cout << "]\n" << std::endl;
 
     // convert llr_data back to hex for verification
-    std::vector<uint32_t> llr_back = convert_to_uint32(llr_ptr, data_bytes);
+    std::vector<uint32_t> llr_back = convert_to_uint32(llr_ptr, data_num);
     print_buffer("llr_back", llr_back);
 
 
     int16_t* resp_var_nodes_ = static_cast<int16_t*>(Agora_memory::PaddedAlignedAlloc(
       Agora_memory::Alignment_t::kAlign64, kVarNodesSize));
 
-    int8_t* decode_buf;
-    AllocBuffer1d(&decode_buf, data_num, Agora_memory::Alignment_t::kAlign64,1);
-
-    // print decode buf
-    std::cout << "Decode buffer init: [";
-    for (size_t i = 0; i < data_num; ++i) {
-        std::printf("%i, ", decode_buf[i]);
-    }
-    std::cout << "]\n" << std::endl;
-
-
     size_t zc = 7;
     size_t basegraph = 2;
     size_t nRows = 42;
-    size_t numChannellrs = 350; // n_cb 
+    size_t n_cb = 350;
+    size_t numChannellrs = n_cb;
     size_t numFillerBits =  30;
     size_t maxIter = 8;
     size_t enableEarlyTerm = true; // RTE_BBDEV_LDPC_ITERATION_STOP_ENABLE 
 
     struct bblib_ldpc_decoder_5gnr_request ldpc_decoder_5gnr_request {};
     struct bblib_ldpc_decoder_5gnr_response ldpc_decoder_5gnr_response {};
+
+    int8_t* decode_buf;
+    size_t decode_num = data_num;
+    AllocBuffer1d(&decode_buf, decode_num, Agora_memory::Alignment_t::kAlign64,1);
 
     ldpc_decoder_5gnr_request.numChannelLlrs = numChannellrs;
     ldpc_decoder_5gnr_request.numFillerBits = numFillerBits;
@@ -190,16 +184,17 @@ int main() {
 
     bblib_ldpc_decoder_5gnr(&ldpc_decoder_5gnr_request, &ldpc_decoder_5gnr_response);
 
-    
+    std::unique_ptr<AgoraScrambler::Scrambler> scrambler = std::make_unique<AgoraScrambler::Scrambler>();
+    scrambler->Descramble((uint8_t*) decode_buf, decode_num);
 
     // print decoded data
     std::cout << "Decoded data: [";
-    for (size_t i = 0; i < data_num; ++i) {
+    for (size_t i = 0; i < decode_num; ++i) {
         std::printf("%i, ", decode_buf[i]);
     }
     std::cout << "]\n" << std::endl;
 
-    std::vector<uint32_t> decoded_data = convert_to_uint32(decode_buf, data_num*1);
+    std::vector<uint32_t> decoded_data = convert_to_uint32(decode_buf, decode_num*1);
     print_buffer("decoded_data_hex", decoded_data);
 
     // Clean up
