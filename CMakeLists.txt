@@ -31,6 +31,7 @@ if(${CMAKE_C_COMPILER_ID} STREQUAL "GNU")
   message(STATUS "Using GNU compiler, compiler ID ${CMAKE_C_COMPILER_ID}")
   set(CMAKE_C_FLAGS "-std=gnu11 -Wall -g -march=native -m64")
   set(CMAKE_CXX_FLAGS "-std=c++17 -Wall -g -march=native -m64")
+  set(MKL_LIBS -Wl,--no-as-needed -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lm -ldl)
   #Set MKL Threading model here if needed (lmkl_intel_lp64 + lmkl_tbb_thread | lmkl_sequential | lmkl_intel_thread)
   #Set -lmkl_rt for dynamic setting of mkl_set_interface_layer / mkl_set_threading_layer
   if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.2)

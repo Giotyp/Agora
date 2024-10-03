@@ -16,9 +16,9 @@
 
 #define VALUE_DELIMITER ","
 
-// const char input0[] = "0x7F817F81, 0x7F81817F, 0x7F7F7F7F, 0x81818181, 0x7F81817F, 0x817F8181, 0x817F7F7F, 0x7F817F81, 0x817F7F7F, 0x8181817F, 0x8181817F";
-const char input0[] = "0x04030201, 0x08070605, 0x0A09";
-const char output0[] = "0x8C4DEB9F, 0x52";
+// char input0[] = "0x7F817F81, 0x7F81817F, 0x7F7F7F7F, 0x81818181, 0x7F81817F, 0x817F8181, 0x817F7F7F, 0x7F817F81, 0x817F7F7F, 0x8181817F, 0x8181817F";
+char input0[] = "0x04030201, 0x08070605, 0x0A09";
+char output0[] = "0x8C4DEB9F, 0x52";
 
 size_t calculateArraySize(const char input[]) {
     size_t count = 0;
@@ -65,38 +65,66 @@ std::string convertToHex(const uint8_t* buffer, size_t length) {
     return oss.str();
 }
 
-static int parse_values(const char *tokens, uint32_t *data, uint32_t *data_length, size_t max_data_size) {
+static int parse_values(char *tokens, uint32_t *data, uint32_t *data_length, size_t max_data_size) {
     uint32_t n_tokens = 0;
-    char *error = NULL;
-    char *temp_tokens = strdup(tokens);
-    if (temp_tokens == NULL)
+    uint32_t data_size = 32;
+
+    uint32_t *values, *values_resized;
+    char *tok, *error = NULL;
+
+    tok = strtok(tokens, VALUE_DELIMITER);
+    if (tok == NULL)
         return -1;
 
-    char *tok = strtok(temp_tokens, VALUE_DELIMITER);
-    if (tok == NULL)
-        return -1; 
+    values = (uint32_t *)malloc(sizeof(uint32_t) * data_size);
+    if (values == NULL) {
+        printf("Failed to allocate memory\n");
+        return -1;
+    }
 
-    while (tok != NULL && n_tokens < max_data_size) {
-        data[n_tokens] = (uint32_t) strtoul(tok, &error, 0);
-        if (error == NULL || *error != '\0') {
+    while (tok != NULL) {
+        values_resized = NULL;
+
+        if (n_tokens >= data_size) {
+            data_size *= 2;
+
+            values_resized = (uint32_t *)realloc(values, sizeof(uint32_t) * data_size);
+            if (values_resized == NULL) {
+                free(values);
+                printf("Failed to reallocate memory\n");
+                return -1;
+            }
+            values = values_resized;
+        }
+
+        values[n_tokens] = (uint32_t)strtoul(tok, &error, 0);
+
+        if ((error == NULL) || (*error != '\0')) {
             printf("Failed to convert '%s'\n", tok);
-            free(temp_tokens);
+            free(values);
             return -1;
         }
 
         *data_length = *data_length + (strlen(tok) - strlen("0x")) / 2;
+
         tok = strtok(NULL, VALUE_DELIMITER);
+        if (tok == NULL)
+            break;
+
         n_tokens++;
     }
 
-    free(temp_tokens);
+    for (size_t i = 0; i < n_tokens + 1; i++) {
+        data[i] = values[i];
+    }
+
+    free(values);
     return 0;
 }
 
 static constexpr size_t kVarNodesSize = 1024 * 1024 * sizeof(int16_t);
 
 int main() {
-    srand(42);
     size_t max_data_size = calculateArraySize(input0);
     printf("Max data size: %zu\n", max_data_size);
     uint32_t input_buf[max_data_size];
@@ -112,6 +140,7 @@ int main() {
         printf("Data length: %u bytes\n\n", data_length);
     } else {
         printf("Error parsing values\n");
+        exit(1);
     }
 
     print_buffer("Input data", std::vector<uint32_t>(input_buf, input_buf + max_data_size));
