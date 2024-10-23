@@ -1160,7 +1160,7 @@ int main() {
   }
 
   if (init_op_data_objs_from_table(*inputs, llr_ptr, in_mbuf_pool, 1,
-                                   min_alignment, n_cb) != 0) {
+                                   min_alignment, data_num) != 0) {
     std::cerr << "Error: Failed to initialize input data objects." << std::endl;
     return -1;
   }
@@ -1168,7 +1168,7 @@ int main() {
   print_mbuf_data(inputs[0]->data, 0, PRINT_NUM, "*inputs[0]->data");
 
   if (init_op_output_objs_from_buffer(*hard_outputs, decode_buf_acc,
-                                      out_mbuf_pool, 1, min_alignment, n_cb)) {
+                                      out_mbuf_pool, 1, min_alignment, data_num)) {
     std::cerr << "Error: Failed to initialize output data objects."
               << std::endl;
     return -1;
@@ -1214,7 +1214,7 @@ int main() {
   }
   std::cout << "]\n" << std::endl;
 
-  init_buffer_from_objs(*hard_outputs, decode_buf_acc, 1, min_alignment, n_cb);
+  init_buffer_from_objs(*hard_outputs, decode_buf_acc, 1, min_alignment, data_num);
 
   std::cout << "Data copied from hard_outputs to decode_buf_acc" << std::endl;
 
